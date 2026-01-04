@@ -83,7 +83,7 @@ main {
 }
 
 footer {
-    border-top: 1px dashed var(--color-light);
+    border-top: 4px solid var(--color-semidark);
     padding: 0 1em;
 }
 
@@ -111,6 +111,11 @@ textarea {
 
 textarea:focus, input:focus{
     outline: none;
+}
+
+kbd {
+    background-color: var(--color-semidark);
+    padding: 0 0.1em;
 }
 
 table {

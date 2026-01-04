@@ -52,6 +52,7 @@ func init() {
 	addTemplate("index", "layout/base.tpl", "index.tpl")
 	addTemplate("add", "layout/base.tpl", "add.tpl")
 	addTemplate("rules", "layout/base.tpl", "rules.tpl")
+	addTemplate("help", "layout/base.tpl", "help.tpl")
 }
 
 func Listen(cfg *config.Config) {
@@ -88,6 +89,9 @@ func createRouter(cfg *config.Config) func(w http.ResponseWriter, r *http.Reques
 			return
 		case "/rules":
 			serveRules(c)
+			return
+		case "/help":
+			serveHelp(c)
 			return
 		case "/favicon.ico":
 			i, err := static.FS.ReadFile("favicon.ico")
@@ -223,6 +227,11 @@ func serveRules(c *webContext) {
 		return
 	}
 	c.Render("rules", nil)
+	return
+}
+
+func serveHelp(c *webContext) {
+	c.Render("help", nil)
 	return
 }
 
