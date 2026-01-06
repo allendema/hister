@@ -19,8 +19,11 @@
         {{ else }}
         <h3>There are no aliases</h3>
         {{ end }}
-        <input type="text" name="alias-keyword" placeholder="Keyword..."  class="full-width" />
-        <input type="text" name="alias-value" placeholder="Value..."  class="full-width" />
+        <details>
+            <summary class="mv-1">Add new alias</summary>
+            <input type="text" name="alias-keyword" placeholder="Keyword..."  class="full-width" />
+            <input type="text" name="alias-value" placeholder="Value..."  class="full-width" />
+        </details>
         <br />
         <input type="submit" value="Save" class="mt-1" />
     </form>
