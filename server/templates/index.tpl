@@ -20,7 +20,6 @@
 <div class="text-center">
     <b>Tips</b><br />
     Use <code>*</code> for partial match.<br />
-    Prefixing word with <code>+</code> makes it mandatory.<br />
     Prefixing word with <code>-</code> excludes matching documents.
 </div>
 </template>
