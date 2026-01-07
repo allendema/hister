@@ -74,7 +74,6 @@ function renderResults(event) {
     highlightIdx = 0;
     resultsHeader.querySelector(".results-num").innerText = res.total;
     resultsHeader.classList.remove("hidden");
-    console.log(res);
     if(res.query.text != input.value) {
         resultsHeader.querySelector(".expanded-query").innerHTML = `Expanded query: <code>"${res.query.text}"</code>`;
     }
@@ -101,11 +100,15 @@ function getSearchUrl(query) {
     return document.querySelector("#search-url").value.replace("{query}", escape(query));
 }
 
+function openUrl(u) {
+    window.location.href = u;
+}
+
 let highlightIdx = 0;
 window.addEventListener("keydown", function(e) {
     if(e.key == "Enter") {
         let url = document.querySelectorAll(".result a")[highlightIdx].getAttribute("href");
-        window.open(url);
+        openUrl(url);
     }
     if(e.ctrlKey && (e.key == "j" || e.key == "k")) {
           e.preventDefault();
@@ -116,6 +119,6 @@ window.addEventListener("keydown", function(e) {
           results.children[highlightIdx].classList.add("highlight");
     }
     if(e.ctrlKey && e.key == "o") {
-        window.open(getSearchUrl(input.value));
+        openUrl(getSearchUrl(input.value));
     }
 });
