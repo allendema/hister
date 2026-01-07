@@ -26,12 +26,8 @@ var rootCmd = &cobra.Command{
 	Short:   "History search",
 	Long:    `History search`,
 	Version: "v0.1.0",
-	Run: func(_ *cobra.Command, _ []string) {
-		//err := gui.CreateWindow(cfg)
-		//if err != nil {
-		//	exit(1, err.Error())
-		//}
-	},
+	//Run: func(_ *cobra.Command, _ []string) {
+	//},
 }
 
 var listenCmd = &cobra.Command{
