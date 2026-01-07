@@ -57,6 +57,7 @@ func init() {
 
 func Listen(cfg *config.Config) {
 	http.HandleFunc("/", createRouter(cfg))
+	log.Info().Str("Address", cfg.Server.Address).Str("URL", cfg.BaseURL("/")).Msg("Starting webserver")
 	http.ListenAndServe(cfg.Server.Address, nil)
 }
 
