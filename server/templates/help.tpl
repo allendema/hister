@@ -5,13 +5,12 @@
 <p>Navigate in results with <kbd>ctrl+j</kbd> and <kbd>ctrl+k</kbd>. <kbd>Enter</kbd> opens the selected result.</p>
 <p>Press <kbd>ctrl+o</kbd> to open the search query in the configured search engine.</p>
 <h2>Search Syntax</h2>
-<p>Use <kbd>quotes</kbd> to match the whole phrase.</p>
+<p>Use <kbd>quotes</kbd> to match phrases.</p>
 <p>Use <kbd>*</kbd> for wildcard matches</p>
-<p>Make phrases mandatory with <kbd>+</kbd> prefix.</p>
-<p>Prefix words with <kbd>-</kbd> to exclude matching documents.</p>
+<p>Prefix words or phrases with <kbd>-</kbd> to exclude matching documents.</p>
 <p>Use <code>url:</code> prefix to search only in the URL field</p>
 <h3>Examples</h3>
-<p><code>"free software" +url:*wikipedia.org*</code>: Search for the phrase "free software" only in URLs containing wikipedia.org</p>
-<p><code>+golang +template -"stack overflow"</code>: Search sites containing both "golang" and "template" words but not the phrase "stack overflow"</p>
+<p><code>"free software" url:*wikipedia.org*</code>: Search for the phrase "free software" only in URLs containing wikipedia.org</p>
+<p><code>golang template -url:*stackoverflow*</code>: Search sites containing both "golang" and "template" but the website should not contain "stackoverflow"</p>
 </div>
 {{end}}

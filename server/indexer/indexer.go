@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 
 	"github.com/asciimoo/hister/config"
 
@@ -153,28 +154,29 @@ func (q *Query) create() query.Query {
 	if q.Fields == nil || len(q.Fields) == 0 {
 		q.Fields = []string{"url", "title", "text"}
 	}
-	//dq := bleve.NewDisjunctionQuery()
-	//dq.Min = 1
 
-	//// title query with big weight
-	//tq := query.NewMatchQuery(strings.Fields(q.Text), "title")
-	//tq.SetBoost(10)
+	// add + to phrases to force matching phrases
+	qp := strings.Fields(q.Text)
+	inQuote := false
+	for i, s := range qp {
+		if len(s) == 0 {
+			continue
+		}
+		if !inQuote && (s[0] == '-' || s[0] == '+') {
+			continue
+		}
+		if !inQuote {
+			qp[i] = "+" + qp[i]
+		}
+		quotes := strings.Count(s, "\"")
+		if quotes%2 == 1 {
+			inQuote = !inQuote
+		}
+	}
 
-	//// text query
-	//sq := query.NewMatchQuery(strings.Fields(q.Text), "text")
-	//sq.SetBoost(1)
+	sq := strings.Join(qp, " ")
 
-	////// standard fallback query
-	////// TODO it searches in html/favicon fields as well..
-	////sq := bleve.NewQueryStringQuery(q.Text)
-	////sq.SetBoost(1)
-
-	//dq.AddQuery(tq)
-	//dq.AddQuery(sq)
-
-	//q.base = dq
-
-	q.base = bleve.NewQueryStringQuery(q.Text)
+	q.base = bleve.NewQueryStringQuery(sq)
 
 	return q
 }
