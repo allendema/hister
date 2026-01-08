@@ -1,13 +1,25 @@
 import {
+    Document,
     extractData,
 } from '../modules/extract';
+
+let d : Document;
 
 window.addEventListener("load", extract, false);
 
 function extract() {
-    let d = extractData();
-    chrome.runtime.sendMessage({data:  d}, resp => {
-    });
+    d = extractData();
+    chrome.runtime.sendMessage({data:  d}, resp => {});
+    setInterval(update, 10*1000);
+}
+
+
+function update() {
+    let d2 = extractData();
+    if(d2.html != d.html) {
+        d = d2;
+        chrome.runtime.sendMessage({data:  d}, resp => {});
+    }
 }
 
 // Get message from background page
