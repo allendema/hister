@@ -4,8 +4,9 @@
     <head>
         <meta charset='utf-8'>
         <title>Hister</title>
-		<link rel="stylesheet" type="text/css" href="/static/style.css" />
-          <link href="/favicon.ico" rel="icon shortcut" type="image/x-icon" />
+        <link rel="stylesheet" type="text/css" href="/static/style.css" />
+        <link href="/favicon.ico" rel="icon shortcut" type="image/x-icon" />
+        <meta name="referrer" content="no-referrer">
     </head>
     <body>
         <header>
