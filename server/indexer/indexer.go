@@ -1,13 +1,17 @@
 package indexer
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/url"
 	"strings"
 
 	"github.com/asciimoo/hister/config"
 	"github.com/asciimoo/hister/server/model"
+
+	"golang.org/x/net/html"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis/analyzer/custom"
@@ -121,8 +125,8 @@ func (d *Document) Process() error {
 	if pu.Scheme == "" || pu.Host == "" {
 		return errors.New("invalid URL: missing scheme/host")
 	}
-	if d.Text == "" || d.Title == "" || d.Favicon == "" {
-		// TODO extract text/title/favicon from html
+	// TODO download d.Favicon if missing
+	if d.Text == "" || d.Title == "" {
 		return d.extractHTML()
 	}
 	return nil
@@ -166,25 +170,57 @@ func Iterate(fn func(*Document)) {
 }
 
 func (d *Document) extractHTML() error {
-	// TODO
-	//r := bytes.NewReader(h)
-	//doc := html.NewTokenizer(r)
-	//for {
-	//    tt := doc.Next()
-	//    switch tt {
-	//    case html.ErrorToken:
-	//        err := doc.Err()
-	//        if errors.Is(err, io.EOF) {
-	//            return ret
-	//        }
-	//        ret.Error = err
-	//        return ret
-	//    case html.StartTagToken:
-	//        tn, hasAttr := doc.TagName()
-	//        if bytes.Equal(tn, []byte("body")) {
-	//        }
-	//	}
-	//}
+	r := bytes.NewReader([]byte(d.HTML))
+	doc := html.NewTokenizer(r)
+	inBody := false
+	skip := false
+	var text strings.Builder
+	var currentTag string
+out:
+	for {
+		tt := doc.Next()
+		switch tt {
+		case html.ErrorToken:
+			err := doc.Err()
+			if errors.Is(err, io.EOF) {
+				break out
+			}
+			return errors.New("failed to parse html: " + err.Error())
+		case html.StartTagToken:
+			tn, _ := doc.TagName()
+			currentTag = string(tn)
+			switch currentTag {
+			case "body":
+				inBody = true
+			case "style":
+			case "script":
+				skip = true
+			}
+		case html.TextToken:
+			if currentTag == "title" {
+				d.Title += strings.TrimSpace(string(doc.Text()))
+			}
+			if inBody && !skip {
+				text.Write(doc.Text())
+			}
+		case html.EndTagToken:
+			tn, _ := doc.TagName()
+			switch string(tn) {
+			case "body":
+				inBody = false
+			case "style":
+			case "script":
+				skip = false
+			}
+		}
+	}
+	d.Text = strings.TrimSpace(text.String())
+	if d.Text == "" {
+		return errors.New("no text found")
+	}
+	if d.Title == "" {
+		return errors.New("no title found")
+	}
 	return nil
 }
 

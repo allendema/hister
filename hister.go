@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -81,6 +85,51 @@ var listURLsCmd = &cobra.Command{
 	},
 }
 
+var indexCmd = &cobra.Command{
+	Use:   "index URL",
+	Short: "index URL",
+	Long:  ``,
+	Args:  cobra.ExactArgs(1),
+	Run: func(_ *cobra.Command, args []string) {
+		u := args[0]
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", u, nil)
+		if err != nil {
+			exit(1, `Failed to download file: `+err.Error())
+		}
+		req.Header.Set("User-Agent", "Hister")
+		r, err := client.Do(req)
+		if err != nil {
+			exit(1, `Failed to download file: `+err.Error())
+		}
+		defer r.Body.Close()
+		contentType := r.Header.Get("Content-type")
+		if !strings.Contains(contentType, "html") {
+			exit(1, "Invalid content type: "+contentType)
+		}
+		buf := bytes.NewBuffer(nil)
+		io.Copy(buf, r.Body)
+		d := &indexer.Document{
+			URL:  u,
+			HTML: string(buf.Bytes()),
+		}
+		if err := d.Process(); err != nil {
+			exit(1, `Failed to process document: `+err.Error())
+		}
+		dj, err := json.Marshal(d)
+		if err != nil {
+			exit(1, `Failed to encode document to JSON: `+err.Error())
+		}
+		req, err = http.NewRequest("POST", cfg.BaseURL("/add"), bytes.NewBuffer(dj))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := client.Do(req)
+		if err != nil {
+			exit(1, `Failed to send page to hister: `+err.Error())
+		}
+		defer resp.Body.Close()
+	},
+}
+
 func exit(errno int, msg string) {
 	if errno != 0 {
 		fmt.Println("Error!")
@@ -97,6 +146,7 @@ func init() {
 	rootCmd.AddCommand(listenCmd)
 	rootCmd.AddCommand(createConfigCmd)
 	rootCmd.AddCommand(listURLsCmd)
+	rootCmd.AddCommand(indexCmd)
 
 	dcfg := config.CreateDefaultConfig()
 	listenCmd.Flags().StringP("address", "a", dcfg.Server.Address, "Listen address")
