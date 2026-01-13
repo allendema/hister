@@ -210,7 +210,7 @@ func serveAdd(c *webContext) {
 		d.Text = f.Get("text")
 	}
 	if err := d.Process(); err != nil {
-		log.Error().Err(err).Msg("failed to process document")
+		log.Error().Err(err).Str("URL", d.URL).Msg("failed to process document")
 		serve500(c)
 		return
 	}
