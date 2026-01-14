@@ -191,6 +191,9 @@ func (c *Config) Host() string {
 }
 
 func (c *Config) WebSocketURL() string {
+	if strings.HasPrefix(c.BaseURL("/"), "https://") {
+		return fmt.Sprintf("wss://%s/search", c.Host())
+	}
 	return fmt.Sprintf("ws://%s/search", c.Host())
 }
 
