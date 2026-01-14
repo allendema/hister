@@ -127,6 +127,9 @@ var indexCmd = &cobra.Command{
 		if err != nil {
 			exit(1, `Failed to send page to hister: `+err.Error())
 		}
+		if resp.StatusCode != http.StatusOK {
+			exit(1, fmt.Sprintf("Failed to send page to hister: Invalid status code (%d)", resp.StatusCode))
+		}
 		defer resp.Body.Close()
 	},
 }
