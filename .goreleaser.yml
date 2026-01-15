@@ -1,0 +1,8 @@
+version: 2
+
+builds:
+  - ignore:
+      - goarch: 386
+
+archives:
+  - formats: ["binary"]
