@@ -1,6 +1,7 @@
 {{ define "main" }}
 <div class="search text-center">
-    <input type="text" autofocus placeholder="Search..." id="search" />
+    <input type="text" autofocus id="search" />
+    <input type="text" disabled id="autocomplete" value="Search..."/>
 </div>
 <div class="container">
     <div id="results"></div>

@@ -158,8 +158,8 @@ func serveSearch(c *webContext) {
 			log.Error().Err(err).Msg("failed to parse query")
 			continue
 		}
+		oq := query.Text
 		query.Text = c.Config.Rules.ResolveAliases(query.Text)
-		// fallback to the indexer
 		res, err := indexer.Search(c.Config, query)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to get indexer results")
@@ -170,6 +170,9 @@ func serveSearch(c *webContext) {
 				res = &indexer.Results{}
 			}
 			res.History = hr
+		}
+		if oq != "" {
+			res.QuerySuggestion = model.GetQuerySuggestion(oq)
 		}
 		res.SearchDuration = fmt.Sprintf("%v", time.Since(start))
 		jr, err := json.Marshal(res)

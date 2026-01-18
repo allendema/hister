@@ -1,5 +1,6 @@
 let ws;
 let input = document.getElementById("search");
+let autocomplete = document.getElementById("autocomplete");
 let results = document.getElementById("results");
 let emptyImg = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 let urlState = {};
@@ -57,6 +58,7 @@ function updateURL() {
 function renderResults(event) {
     const res = JSON.parse(event.data);
     const d = res.documents;
+    updateAutocomplete(res.query_suggestion);
     if(!d || !d.length) {
         if(!input.value) {
             results.replaceChildren(createTemplate("tips", {}));
@@ -85,12 +87,28 @@ function renderResults(event) {
 };
 
 input.addEventListener("input", () => {
+    handleInput();
+});
+
+function handleInput() {
     updateURL();
     sendQuery(input.value);
-});
+}
 
 function getSearchUrl(query) {
     return document.querySelector("#search-url").value.replace("{query}", escape(query));
+}
+
+function updateAutocomplete(suggestion) {
+    if(!input.value) {
+        autocomplete.value = "Search...";
+        return;
+    }
+    if(!suggestion) {
+        autocomplete.value = "";
+        return;
+    }
+    autocomplete.value = suggestion.replaceAt(0, input.value);
 }
 
 function openUrl(u, newWindow) {
@@ -198,11 +216,11 @@ function savePriorityResult(e) {
 }
 
 function saveHistoryItem(url, title, query) {
-	return fetch("/history", {
-		method: "POST",
-		body: JSON.stringify({"url": url, "title": title, "query": query}),
-		headers: {"Content-type": "application/json; charset=UTF-8"},
-	})
+    return fetch("/history", {
+        method: "POST",
+        body: JSON.stringify({"url": url, "title": title, "query": query}),
+        headers: {"Content-type": "application/json; charset=UTF-8"},
+    })
 }
 
 let highlightIdx = 0;
@@ -211,6 +229,7 @@ window.addEventListener("keydown", function(e) {
         if(document.activeElement != input) {
             e.preventDefault();
             input.focus();
+            return;
         }
     }
     if(e.key == "Enter") {
@@ -218,19 +237,33 @@ window.addEventListener("keydown", function(e) {
         let res = document.querySelectorAll(".result a")[highlightIdx];
         let newWindow = e.ctrlKey ? true : false;
         openResult({'target': res}, newWindow);
+        return
+    }
+    if(e.key == "Tab") {
+        if(document.activeElement == input && input.value != autocomplete.value) {
+            input.value = autocomplete.value;
+            handleInput();
+            e.preventDefault();
+        }
     }
     if(e.ctrlKey && (e.key == "j" || e.key == "k")) {
-          e.preventDefault();
-          if(results.children.length > highlightIdx) {
-              results.children[highlightIdx].classList.remove("highlight");
-          }
-          highlightIdx = (highlightIdx+(e.key=="j"?1:-1)+results.children.length) % results.children.length;
-          results.children[highlightIdx].classList.add("highlight");
+        e.preventDefault();
+
+        let res = document.querySelectorAll(".result");
+        if(res.length > highlightIdx) {
+            res[highlightIdx].classList.remove("highlight");
+        }
+        highlightIdx = (highlightIdx+(e.key=="j"?1:-1)+res.length) % res.length;
+        res[highlightIdx].classList.add("highlight");
     }
     if(e.ctrlKey && e.key == "o") {
         e.preventDefault();
         openUrl(getSearchUrl(input.value));
     }
 });
+
+String.prototype.replaceAt = function(index, replacement) {
+    return this.substring(0, index) + replacement + this.substring(index + replacement.length);
+}
 
 init();

@@ -203,10 +203,23 @@ code, kbd {
 }
 
 .search {
+    position: relative;
     margin-top: 1em;
+    height: 5em;
     input {
+        position: absolute;
+        top: 0;
+        left: 10%;
         width: 80%;
         font-size: 2em;
+    }
+    #search {
+        z-index: 2;
+        background-color: transparent;
+    }
+    #autocomplete {
+        z-index: 1;
+        color: var(--color-semilight);
     }
 }
 
@@ -304,6 +317,7 @@ mark {
     .search {
         input {
             font-size: 1.5em;
+            left: 2.5%;
             width: 95%;
         }
     }

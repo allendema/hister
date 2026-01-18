@@ -6,6 +6,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 )
 
 type History struct {
@@ -108,4 +109,15 @@ func GetLatestHistoryItems(limit int) ([]*HistoryItem, error) {
 		Order("history_links.updated_at DESC").
 		Limit(limit).Find(&hs).Error
 	return hs, err
+}
+
+func GetQuerySuggestion(q string) string {
+	var r string
+	DB.Select("histories.query as query").
+		Table("history_links").
+		Joins("JOIN histories ON history_links.history_id = histories.id").
+		Where("LOWER(histories.query) LIKE ?", strings.ToLower(q+"%")).
+		Order("history_links.count DESC").
+		Limit(1).Find(&r)
+	return r
 }
