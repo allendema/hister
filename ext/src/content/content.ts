@@ -4,22 +4,30 @@ import {
 } from '../modules/extract';
 
 let d : Document;
+// ms
+const defaultSleepTime = 10*1000;
+let sleepTime = defaultSleepTime;
+const sleepIncrementRatio = 2;
 
 window.addEventListener("load", extract, false);
 
 function extract() {
     d = extractData();
     chrome.runtime.sendMessage({data:  d}, resp => {});
-    setInterval(update, 10*1000);
+    setTimeout(update, sleepTime);
 }
 
 
 function update() {
     let d2 = extractData();
     if(d2.html != d.html) {
+        sleepTime = defaultSleepTime;
         d = d2;
         chrome.runtime.sendMessage({data:  d}, resp => {});
+    } else {
+        sleepTime *= sleepIncrementRatio;
     }
+    setTimeout(update, sleepTime);
 }
 
 // Get message from background page
