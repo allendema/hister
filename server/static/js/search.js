@@ -17,6 +17,7 @@ const tips = [
     'Use <code>alt+k</code> and <code>alt+j</code> to navigate between results.',
     'Press <code>alt+o</code> to open current search query in your configured search engine.',
     'Use <code>url:</code> prefix to search only in the URL field. E.g.: <code>url:*github* hister</code>.',
+    'Set hister to your default search engine in your browser to access it with ease.',
 ];
 
 function createTemplate(name, fns) {

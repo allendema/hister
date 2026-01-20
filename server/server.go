@@ -66,6 +66,7 @@ func init() {
 	addTemplate("help", "layout/base.tpl", "help.tpl")
 	addTemplate("about", "layout/base.tpl", "about.tpl")
 	addTemplate("history", "layout/base.tpl", "history.tpl")
+	addTemplate("opensearch", "opensearch.tpl")
 }
 
 func Listen(cfg *config.Config) {
@@ -75,7 +76,7 @@ func Listen(cfg *config.Config) {
 }
 
 func addTemplate(name string, paths ...string) {
-	t, err := template.New("").Funcs(tFns).ParseFS(templates.FS, paths...)
+	t, err := template.New(name).Funcs(tFns).ParseFS(templates.FS, paths...)
 	if err != nil {
 		panic(err)
 	}
@@ -121,6 +122,9 @@ func createRouter(cfg *config.Config) func(w http.ResponseWriter, r *http.Reques
 			return
 		case "/readable":
 			serveReadable(c)
+			return
+		case "/opensearch.xml":
+			serveOpensearch(c)
 			return
 		case "/favicon.ico":
 			i, err := static.FS.ReadFile("favicon.ico")
@@ -342,6 +346,12 @@ func serveAbout(c *webContext) {
 	return
 }
 
+func serveOpensearch(c *webContext) {
+	c.Response.Header().Add("Content-Type", "application/xml")
+	c.Render("opensearch", nil)
+	return
+}
+
 func serveAddAlias(c *webContext) {
 	err := c.Request.ParseForm()
 	if err != nil {
@@ -399,7 +409,11 @@ func (c *webContext) Render(tpl string, args tArgs) {
 		serve500(c)
 		return
 	}
-	err := t.ExecuteTemplate(c.Response, "base", args)
+	base := "base"
+	if tpl == "opensearch" {
+		base = "opensearch.tpl"
+	}
+	err := t.ExecuteTemplate(c.Response, base, args)
 	if err != nil {
 		log.Error().Err(err).Msg("template render error")
 		serve500(c)
