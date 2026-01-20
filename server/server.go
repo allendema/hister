@@ -16,6 +16,7 @@ import (
 	"github.com/asciimoo/hister/server/templates"
 
 	readability "codeberg.org/readeck/go-readability/v2"
+	"filippo.io/csrf"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
 )
@@ -70,9 +71,24 @@ func init() {
 }
 
 func Listen(cfg *config.Config) {
-	http.HandleFunc("/", createRouter(cfg))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", createRouter(cfg))
+
+	protection := csrf.New()
+	trustedOrigins := []string{
+		strings.TrimSuffix(cfg.BaseURL("/"), "/"),
+		"chrome-extension://cciilamhchpmbdnniabclekddabkifhb",
+		"moz-extension://0dce49ea-6bfd-46a6-a4a9-c9e45145e011",
+	}
+	for _, o := range trustedOrigins {
+		if err := protection.AddTrustedOrigin(o); err != nil {
+			panic(err)
+		}
+	}
+	handler := protection.Handler(mux)
+
 	log.Info().Str("Address", cfg.Server.Address).Str("URL", cfg.BaseURL("/")).Msg("Starting webserver")
-	http.ListenAndServe(cfg.Server.Address, nil)
+	http.ListenAndServe(cfg.Server.Address, handler)
 }
 
 func addTemplate(name string, paths ...string) {

@@ -13,6 +13,7 @@ require (
 
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.0 // indirect
+	filippo.io/csrf v0.2.1 // indirect
 	fyne.io/systray v1.11.1-0.20250603113521-ca66a66d8b58 // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/RoaringBitmap/roaring/v2 v2.4.5 // indirect
