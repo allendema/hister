@@ -15,7 +15,7 @@ async function fetchFavicon(url) {
   });
 }
 
-async function sendDocument(url, doc) {
+async function sendPageData(url, doc) {
     try {
         doc['favicon'] = await fetchFavicon(doc.faviconURL);
     } catch(e) {
@@ -28,6 +28,15 @@ async function sendDocument(url, doc) {
     })
 }
 
+async function sendResult(url, res) {
+    return fetch(url, {
+        method: "POST",
+        body: JSON.stringify(res),
+        headers: {"Content-type": "application/json; charset=UTF-8"},
+    })
+}
+
 export {
-    sendDocument,
+    sendPageData,
+    sendResult,
 }

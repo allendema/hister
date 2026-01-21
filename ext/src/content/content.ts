@@ -1,9 +1,10 @@
 import {
-    Document,
-    extractData,
+    PageData,
+    extractPageData,
+    registerResultExtractor,
 } from '../modules/extract';
 
-let d : Document;
+let d : PageData;
 // ms
 const defaultSleepTime = 10*1000;
 let sleepTime = defaultSleepTime;
@@ -12,13 +13,14 @@ const sleepIncrementRatio = 2;
 window.addEventListener("load", extract, false);
 
 function extract() {
+    registerResultExtractor(window, r => chrome.runtime.sendMessage({resultData:  r}));
     try {
-        d = extractData();
+        d = extractPageData();
     } catch(e) {
         console.log("failed to extract page data:", e);
         return;
     }
-    chrome.runtime.sendMessage({data:  d}, resp => {});
+    chrome.runtime.sendMessage({pageData:  d}, resp => {});
     setTimeout(update, sleepTime);
 }
 
@@ -26,7 +28,7 @@ function extract() {
 function update() {
     let d2;
     try {
-        d2 = extractData();
+        d2 = extractPageData();
     } catch(e) {
         console.log("failed to extract page data", e);
         return;
@@ -34,7 +36,7 @@ function update() {
     if(d2.html != d.html) {
         sleepTime = defaultSleepTime;
         d = d2;
-        chrome.runtime.sendMessage({data:  d}, resp => {});
+        chrome.runtime.sendMessage({pageData:  d}, resp => {});
     } else {
         sleepTime *= sleepIncrementRatio;
     }

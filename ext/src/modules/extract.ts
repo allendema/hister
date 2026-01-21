@@ -1,4 +1,4 @@
-type Document = {
+type PageData = {
     title: string;
     text: string;
     url: string;
@@ -6,12 +6,57 @@ type Document = {
     faviconURL: string;
 }
 
+type Result = {
+    title: string;
+    url: string;
+    query: string;
+}
+
+type ExtractorCallback = (r: Result) => void;
+
+interface ResultExtractor {
+    isMatch(w: Window): boolean;
+    setCallback(d: Document, cb: ExtractorCallback);
+}
+
+class GoogleExtractor implements ResultExtractor {
+    isMatch(w) {
+        return w.location.hostname == "www.google.com" && w.location.pathname == "/search";
+    }
+    setCallback(d, cb) {
+        d.body.addEventListener("click", (e) => {
+            let el = e.target;
+            if(el.nodeName != "H3") {
+                return;
+            }
+            let res = el.closest('a[jsname="UWckNb"]');
+            if(!res) {
+                return;
+            }
+            let result = {
+                'url': res.getAttribute('href'),
+                'title': el.innerText,
+                'query': d.querySelector("textarea[name='q']").value,
+
+            }
+            cb(result);
+        });
+    }
+}
+
+
+
+let resultExtractors: ResultExtractor[] = [
+    new GoogleExtractor(),
+];
+
+
 function getURL() {
 	return window.location.href.replace(window.location.hash, "");
 }
 
-function extractData() : Document {
-    let d : Document = {
+function extractPageData() : PageData{
+    let d : PageData = {
         text: document.body.innerText,
         title: document.querySelector("title").innerText,
         url: getURL(),
@@ -25,7 +70,17 @@ function extractData() : Document {
     return d;
 }
 
+function registerResultExtractor(w: Window, cb: ExtractorCallback) {
+    for(let ex of resultExtractors) {
+        if(ex.isMatch(w)) {
+            ex.setCallback(w.document, cb);
+            return;
+        }
+    }
+}
+
 export {
-    Document,
-    extractData,
+    PageData,
+    registerResultExtractor,
+    extractPageData,
 }
