@@ -4,6 +4,8 @@
 
 Hister is a web history management tool that provides blazing fast, content-based search for visited websites. Unlike traditional browser history that only searches URLs and titles, Hister indexes the full content of web pages you visit, enabling deep and meaningful search across your browsing history.
 
+![hister screenshot](assets/screenshot.png)
+
 ![hister screencast](assets/demo.gif)
 
 
