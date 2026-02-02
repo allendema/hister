@@ -137,7 +137,8 @@ func (t *tui) layout(g *gocui.Gui) error {
 			return err
 		}
 		v.Frame = false
-		fmt.Fprintf(v, Banner)
+		v.FgColor = gocui.ColorBlue
+		fmt.Fprintf(v, "%s", Banner)
 	}
 	if v, err := g.SetView("search-input", 5, 5, maxX-6, 7); err != nil {
 		if err != gocui.ErrUnknownView {
@@ -154,6 +155,7 @@ func (t *tui) layout(g *gocui.Gui) error {
 	}
 	if v, err := g.SetView("results", 0, 8, maxX-2, maxY-1); err != nil {
 		v.Frame = false
+		v.Wrap = true
 		v.Overwrite = true
 		t.ResultsView = v
 	}
@@ -207,7 +209,7 @@ func (t *tui) renderHistoryItem(d *model.URLCount) {
 func (t *tui) renderResult(d *indexer.Document) {
 	//t.ResultsView.FgColor = gocui.ColorDefault | gocui.AttrBold
 	fmt.Fprintf(t.ResultsView, "\033[1m%s\033[0m\n", d.Title)
-	fmt.Fprintln(t.ResultsView, d.URL)
+	fmt.Fprintf(t.ResultsView, "\033[34m%s\033[0m\n", d.URL)
 	if d.Text != "" {
 		fmt.Fprintln(t.ResultsView, strings.ReplaceAll(d.Text, "\n", " "))
 	}
