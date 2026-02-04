@@ -57,7 +57,7 @@ type Rule struct {
 
 type Aliases map[string]string
 
-var hotkeyKeyRe *regexp.Regexp = regexp.MustCompile("^((ctrl|alt|meta)\\+)?([a-z0-9/]|enter|tab)$")
+var hotkeyKeyRe *regexp.Regexp = regexp.MustCompile("^((ctrl|alt|meta)\\+)?([a-z0-9/?]|enter|tab)$")
 var hotkeyActions = []string{
 	"select_previous_result",
 	"select_next_result",
@@ -67,6 +67,7 @@ var hotkeyActions = []string{
 	"open_query_in_search_engine",
 	"view_result_popup",
 	"autocomplete",
+	"show_hotkeys",
 }
 
 func readConfigFile(filename string) ([]byte, string, error) {
@@ -128,6 +129,7 @@ func CreateDefaultConfig() *Config {
 			"alt+o":     "open_query_in_search_engine",
 			"alt+v":     "view_result_popup",
 			"tab":       "autocomplete",
+			"?":         "show_hotkeys",
 		},
 	}
 }

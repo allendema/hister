@@ -21,6 +21,19 @@ const hotkeyActions = {
     "focus_search_input": focusSearchInput,
     "view_result_popup": viewResultPopup,
     "autocomplete": autocomplete,
+    "show_hotkeys": showHotkeys,
+}
+
+const hotkeyDescriptions = {
+    "open_result": "Open result",
+    "open_result_in_new_tab": "Open result in new tab",
+    "select_next_result": "Select next result",
+    "select_previous_result": "Select previous result",
+    "open_query_in_search_engine": "Open query in search engine",
+    "focus_search_input": "Focus search input",
+    "view_result_popup": "View result popup",
+    "autocomplete": "Autocomplete query",
+    "show_hotkeys": "Show Hotkeys",
 }
 
 const tips = [
@@ -360,7 +373,7 @@ window.addEventListener("keydown", function(e) {
     }
     if(hotkeys[key]) {
         hotkeyActions[hotkeys[key]](e);
-        return
+        return;
     }
     if(e.key == 'Escape') {
         if(closePopup()) {
@@ -425,6 +438,24 @@ function focusSearchInput(e) {
         input.focus();
         return;
     }
+}
+
+function showHotkeys(e) {
+    if(document.activeElement == input) {
+        return;
+    }
+    if(closePopup()) {
+        return;
+    }
+    let c = document.createElement('div');
+    for(let k in hotkeys) {
+        let t = createTemplate("hotkey", {
+            "kbd": e => e.textContent = k,
+            "span": e => e.textContent = hotkeyDescriptions[hotkeys[k]],
+        });
+        c.appendChild(t);
+    }
+    openPopup("Hotkeys", c.innerHTML);
 }
 
 String.prototype.replaceAt = function(index, replacement) {

@@ -54,6 +54,12 @@
     </div>
 </div>
 </template>
+<template id="hotkey">
+    <div class="hotkey">
+        <div><kbd></kbd></div>
+        <span></span>
+    </div>
+</template>
 <script id="hotkey-data" type="application/json">
 {{ .Config.Hotkeys.ToJSON }}
 </script>
