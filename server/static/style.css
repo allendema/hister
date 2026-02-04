@@ -231,6 +231,35 @@ table {
     }
 }
 
+.hotkeys-button {
+    position: fixed;
+    bottom: 2em;
+    right: 2em;
+    width: 3em;
+    height: 3em;
+    border-radius: 50%;
+    background: var(--color-semidark);
+    border: 2px solid var(--color-grey);
+    color: var(--color-blue);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 5;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    svg {
+        width: 1.5em;
+        height: 1.5em;
+    }
+    &:hover {
+        background: var(--color-grey);
+        border-color: var(--color-blue);
+        transform: scale(1.1);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    }
+}
+
 .result {
     padding: 0.5em;
     margin-top: 0.5em;

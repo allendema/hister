@@ -174,6 +174,8 @@ function openUrl(u, newWindow) {
 function init() {
     results.replaceChildren(createTips());
     connect();
+
+    document.getElementById('hotkey-button').addEventListener('click', showHotkeys);
 }
 
 function openResult(e, newWindow) {
@@ -455,7 +457,7 @@ function showHotkeys(e) {
         });
         c.appendChild(t);
     }
-    openPopup("Hotkeys", c.innerHTML);
+    openPopup("<h2>Hotkeys</h2>", c.innerHTML);
 }
 
 String.prototype.replaceAt = function(index, replacement) {
