@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -20,10 +22,11 @@ import (
 )
 
 type Config struct {
-	fname  string
-	App    App    `yaml:"app"`
-	Server Server `yaml:"server"`
-	Rules  *Rules `yaml:"-"`
+	fname   string
+	App     App     `yaml:"app"`
+	Server  Server  `yaml:"server"`
+	Hotkeys Hotkeys `yaml:"hotkeys"`
+	Rules   *Rules  `yaml:"-"`
 }
 
 type App struct {
@@ -39,6 +42,8 @@ type Server struct {
 	Database string `yaml:"database"`
 }
 
+type Hotkeys map[string]string
+
 type Rules struct {
 	Skip     *Rule   `json:"skip"`
 	Priority *Rule   `json:"priority"`
@@ -51,6 +56,19 @@ type Rule struct {
 }
 
 type Aliases map[string]string
+
+var hotkeyKeyRe *regexp.Regexp = regexp.MustCompile("^((ctrl|alt|meta)\\+)?([a-z0-9/?]|enter|tab)$")
+var hotkeyActions = []string{
+	"select_previous_result",
+	"select_next_result",
+	"focus_search_input",
+	"open_result",
+	"open_result_in_new_tab",
+	"open_query_in_search_engine",
+	"view_result_popup",
+	"autocomplete",
+	"show_hotkeys",
+}
 
 func readConfigFile(filename string) ([]byte, string, error) {
 	b, err := os.ReadFile(filename)
@@ -102,6 +120,17 @@ func CreateDefaultConfig() *Config {
 			Address:  "127.0.0.1:4433",
 			Database: "db.sqlite3",
 		},
+		Hotkeys: Hotkeys{
+			"alt+j":     "select_next_result",
+			"alt+k":     "select_previous_result",
+			"/":         "focus_search_input",
+			"enter":     "open_result",
+			"alt+enter": "open_result_in_new_tab",
+			"alt+o":     "open_query_in_search_engine",
+			"alt+v":     "view_result_popup",
+			"tab":       "autocomplete",
+			"?":         "show_hotkeys",
+		},
 	}
 }
 
@@ -132,8 +161,10 @@ func (c *Config) init() error {
 		dir := u.HomeDir
 		c.App.Directory = filepath.Join(dir, c.App.Directory[2:])
 	}
-	err := os.MkdirAll(c.App.Directory, os.ModePerm)
-	if err != nil {
+	if err := os.MkdirAll(c.App.Directory, os.ModePerm); err != nil {
+		return err
+	}
+	if err := c.Hotkeys.Validate(); err != nil {
 		return err
 	}
 	return c.LoadRules()
@@ -322,4 +353,24 @@ func (r *Rules) ResolveAliases(s string) string {
 		return s
 	}
 	return strings.Join(sp, " ")
+}
+
+func (h Hotkeys) Validate() error {
+	for k, v := range h {
+		if !slices.Contains(hotkeyActions, v) {
+			return errors.New("unknown hotkey action: " + v)
+		}
+		if !hotkeyKeyRe.MatchString(k) {
+			return errors.New("invalid hotkey definition: " + k)
+		}
+	}
+	return nil
+}
+
+func (h Hotkeys) ToJSON() template.JS {
+	b, err := json.Marshal(h)
+	if err != nil {
+		return template.JS("")
+	}
+	return template.JS(b)
 }

@@ -128,9 +128,22 @@ textarea:focus, input:focus{
     outline: none;
 }
 
+
+code {
+    background-color: var(--color-grey);
+    padding: 0 0.2em;
+}
+
 kbd {
-    background-color: var(--color-semidark);
-    padding: 0 0.1em;
+    background-color: var(--color-grey);
+    border: 1px solid var(--color-semilight);
+    border-radius: 0.3em;
+    padding: 0.3em 0.7em;
+    margin: 0 0.2em;
+    font-family: monospace;
+    font-size: 0.85em;
+    white-space: nowrap;
+    box-shadow: 0 2px 0 var(--color-semidark);
 }
 
 table {
@@ -141,11 +154,6 @@ table {
         border: 1px solid var(--color-grey);
         text-align: center;
     }
-}
-
-code, kbd {
-    background-color: var(--color-grey);
-    padding: 0 0.2em;
 }
 
 @keyframes fade-in {
@@ -223,6 +231,56 @@ code, kbd {
     }
 }
 
+.hotkeys-button {
+    position: fixed;
+    bottom: 2em;
+    right: 2em;
+    width: 3em;
+    height: 3em;
+    border-radius: 50%;
+    background: var(--color-semidark);
+    border: 2px solid var(--color-grey);
+    color: var(--color-blue);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 5;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    svg {
+        width: 1.5em;
+        height: 1.5em;
+    }
+    &:hover {
+        background: var(--color-grey);
+        border-color: var(--color-blue);
+        transform: scale(1.1);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    }
+}
+
+.hotkey-toggle-section {
+    border-top: 2px solid var(--color-grey);
+    text-align: center;
+    p {
+        color: var(--color-semilight);
+        font-size: 0.9em;
+    }
+    .hotkey-toggle-btn {
+        transition: all 0.2s ease;
+        &:hover {
+            background: var(--color-blue);
+            color: var(--color-light);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        &:active {
+            transform: translateY(0);
+        }
+    }
+}
+
 .result {
     padding: 0.5em;
     margin-top: 0.5em;
@@ -284,6 +342,21 @@ code, kbd {
         .popup-content {
             * {
                 margin: 1em 0;
+            }
+            .hotkey {
+                max-width: 30em;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.2em 0.5em;
+                margin: 0 auto;
+                border-bottom: 1px solid var(--color-grey);
+                span {
+                    flex: 1;
+                    text-align: right;
+                    color: var(--color-light);
+                    font-size: 0.95em;
+                }
             }
             img, pre, code {
                 max-width: 100%;
