@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/asciimoo/hister/config"
 	"github.com/asciimoo/hister/server"
@@ -353,7 +354,10 @@ func yesNoPrompt(label string, def bool) bool {
 //}
 
 func indexURL(u string) error {
-	client := &http.Client{}
+	client := &http.Client{
+		// Websites can be slow or unreachable, we don't want to wait too long for each of them, especially if we are indexing a lot of URLs during import.
+		Timeout: 5 * time.Second,
+	}
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
 		return errors.New(`failed to download file: ` + err.Error())
@@ -381,9 +385,10 @@ func indexURL(u string) error {
 	if err != nil {
 		errors.New(`failed to encode document to JSON: ` + err.Error())
 	}
+	histerClient := &http.Client{}
 	req, err = http.NewRequest("POST", cfg.BaseURL("/add"), bytes.NewBuffer(dj))
 	req.Header.Set("content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := histerClient.Do(req)
 	if err != nil {
 		return errors.New(`failed to send page to hister: ` + err.Error())
 	}
