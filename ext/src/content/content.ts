@@ -11,6 +11,7 @@ let sleepTime = defaultSleepTime;
 const sleepIncrementRatio = 2;
 
 window.addEventListener("load", extract, false);
+window.addEventListener("navigatesuccess", update)
 
 function extract(sendResponse) {
     registerResultExtractor(window, r => chrome.runtime.sendMessage({resultData:  r}));
@@ -24,8 +25,10 @@ function extract(sendResponse) {
     setTimeout(update, sleepTime);
 }
 
-
 function update() {
+    if(!d) {
+        return;
+    }
     let d2;
     try {
         d2 = extractPageData();
@@ -33,7 +36,7 @@ function update() {
         console.log("failed to extract page data", e);
         return;
     }
-    if(d2.html != d.html) {
+    if(d2.html != d.html || d2.url != d.url) {
         sleepTime = defaultSleepTime;
         d = d2;
         chrome.runtime.sendMessage({pageData:  d}, resp => {});
