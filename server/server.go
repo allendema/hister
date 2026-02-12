@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -227,34 +228,15 @@ func serveSearch(c *webContext) {
 	defer conn.Close()
 	for {
 		_, q, err := conn.ReadMessage()
-		start := time.Now()
 		if err != nil {
 			log.Error().Err(err).Msg("failed to read websocket message")
 			break
 		}
-		var query *indexer.Query
-		err = json.Unmarshal(q, &query)
+		res, err := doSearch(q, c.Config)
 		if err != nil {
-			log.Error().Err(err).Msg("failed to parse query")
+			log.Error().Err(err).Msg("search error")
 			continue
 		}
-		oq := query.Text
-		query.Text = c.Config.Rules.ResolveAliases(query.Text)
-		res, err := indexer.Search(c.Config, query)
-		if err != nil {
-			log.Error().Err(err).Msg("failed to get indexer results")
-		}
-		if res == nil {
-			res = &indexer.Results{}
-		}
-		hr, err := model.GetURLsByQuery(oq)
-		if err == nil && len(hr) > 0 {
-			res.History = hr
-		}
-		if oq != "" {
-			res.QuerySuggestion = model.GetQuerySuggestion(oq)
-		}
-		res.SearchDuration = fmt.Sprintf("%v", time.Since(start))
 		jr, err := json.Marshal(res)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to marshal indexer results")
@@ -264,6 +246,33 @@ func serveSearch(c *webContext) {
 			break
 		}
 	}
+}
+
+func doSearch(q []byte, cfg *config.Config) (*indexer.Results, error) {
+	start := time.Now()
+	var query *indexer.Query
+	err := json.Unmarshal(q, &query)
+	if err != nil {
+		return nil, errors.New("failed to parse query")
+	}
+	oq := query.Text
+	query.Text = cfg.Rules.ResolveAliases(query.Text)
+	res, err := indexer.Search(cfg, query)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to get indexer results")
+	}
+	if res == nil {
+		res = &indexer.Results{}
+	}
+	hr, err := model.GetURLsByQuery(oq)
+	if err == nil && len(hr) > 0 {
+		res.History = hr
+	}
+	if oq != "" {
+		res.QuerySuggestion = model.GetQuerySuggestion(oq)
+	}
+	res.SearchDuration = fmt.Sprintf("%v", time.Since(start))
+	return res, nil
 }
 
 func serveAdd(c *webContext) {
