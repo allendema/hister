@@ -4,6 +4,7 @@ let autocompleteEl = document.getElementById("autocomplete");
 let results = document.getElementById("results");
 let emptyImg = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 let urlState = {};
+let lastResults = null;
 let templates = {};
 for(let el of document.querySelectorAll("template")) {
     let id = el.getAttribute("id")
@@ -94,6 +95,7 @@ function updateURL() {
 
 function renderResults(event) {
     const res = JSON.parse(event.data);
+    lastResults = res;
     const d = res.documents;
     updateAutocomplete(res.query_suggestion);
     if(!d && !res.history) {
@@ -256,6 +258,9 @@ function createResultsHeader(res) {
     const header = createTemplate("results-header", {
         ".duration": (e) => e.innerText = res.search_duration || "",
         ".results-num": (e) => e.innerText = res.total || d.length,
+        ".export-json": (e) => e.addEventListener("click", () => exportJSON()),
+        ".export-csv": (e) => e.addEventListener("click", () => exportCSV()),
+        ".export-rss": (e) => e.addEventListener("click", () => exportRSS()),
     });
     if(res.query && res.query.text != input.value) {
         header.querySelector(".expanded-query").innerHTML = `Expanded query: <code>"${res.query.text}"</code>`;
@@ -557,6 +562,48 @@ function toggleHotkeyButton() {
 
     closePopup();
     showHotkeys();
+}
+
+function downloadFile(content, filename, mimeType) {
+    let blob = new Blob([content], {type: mimeType});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function exportJSON() {
+    if(!lastResults) return;
+    downloadFile(JSON.stringify(lastResults, null, 2), "results.json", "application/json");
+}
+
+function exportCSV() {
+    if(!lastResults) return;
+    let rows = [["url", "title", "domain", "score"]];
+    if(lastResults.documents) {
+        for(let d of lastResults.documents) {
+            rows.push([d.url, d.title, d.domain, d.score]);
+        }
+    }
+    let csv = rows.map(r => r.map(v => '"' + String(v || "").replace(/"/g, '""') + '"').join(",")).join("\n");
+    downloadFile(csv, "results.csv", "text/csv");
+}
+
+function exportRSS() {
+    if(!lastResults) return;
+    let items = "";
+    if(lastResults.documents) {
+        for(let d of lastResults.documents) {
+            items += `<item><title>${escapeXML(d.title || "")}</title><link>${escapeXML(d.url || "")}</link></item>`;
+        }
+    }
+    let rss = `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>Hister search: ${escapeXML(input.value)}</title>${items}</channel></rss>`;
+    downloadFile(rss, "results.rss", "application/rss+xml");
+}
+
+function escapeXML(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
 String.prototype.replaceAt = function(index, replacement) {

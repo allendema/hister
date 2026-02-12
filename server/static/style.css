@@ -433,3 +433,18 @@ mark {
         }
     }
 }
+
+.export-buttons {
+    margin-top: 0.3em;
+    font-size: 0.85em;
+    color: var(--color-semilight);
+}
+
+.export-buttons a {
+    cursor: pointer;
+    color: var(--color-blue);
+}
+
+.export-buttons a:hover {
+    text-decoration: underline;
+}

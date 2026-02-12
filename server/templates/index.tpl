@@ -24,6 +24,9 @@
         <div class="duration float-right"></div>
         <div>Total number of results: <b class="results-num"></b></div>
         <div class="expanded-query"></div>
+        <div class="export-buttons">
+            Export: <a class="export-json">JSON</a> | <a class="export-csv">CSV</a> | <a class="export-rss">RSS</a>
+        </div>
     </div>
 </template>
 <template id="tips">
