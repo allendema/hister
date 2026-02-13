@@ -278,6 +278,10 @@ func (d *Document) Process() error {
 	if pu.Scheme == "" || pu.Host == "" {
 		return errors.New("invalid URL: missing scheme/host")
 	}
+	if pu.Fragment != "" {
+		pu.Fragment = ""
+		d.URL = pu.String()
+	}
 	d.Added = time.Now().Unix()
 	q := pu.Query()
 	qChange := false
