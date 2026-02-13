@@ -163,9 +163,13 @@ func Reindex(idxPath, tmpIdxPath string, rules *config.Rules) error {
 		for _, h := range res.Hits {
 			d := docFromHit(h)
 			if err := d.Process(); err != nil {
-				tmpIdx.Close()
-				os.RemoveAll(tmpIdxPath)
-				return err
+				if errors.Is(err, ErrSensitiveContent) {
+					log.Warn().Err(err).Str("URL", d.URL).Msg("Skipping document")
+				} else {
+					tmpIdx.Close()
+					os.RemoveAll(tmpIdxPath)
+					return err
+				}
 			}
 			if rules.IsSkip(d.URL) {
 				log.Info().Str("URL", d.URL).Msg("Dropping URL that has since been added to skip rules.")
