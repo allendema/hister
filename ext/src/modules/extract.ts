@@ -44,10 +44,36 @@ class GoogleExtractor implements ResultExtractor {
     }
 }
 
+class DuckDuckGoExtractor implements ResultExtractor {
+    isMatch(w) {
+        return w.location.hostname.match(/^(noai\.|www\.)?duckduckgo.com$/) && w.location.pathname == "/";
+    }
+    setCallback(d, cb) {
+        d.body.addEventListener("click", (e) => {
+            let el = e.target;
+            if(el.nodeName != "SPAN") {
+                return;
+            }
+            let res = el.closest('a[class="eVNpHGjtxRBq_gLOfGDr LQNqh2U1kzYxREs65IJu"]');
+            if(!res) {
+                return;
+            }
+            let result = {
+                'url': res.getAttribute('href'),
+                'title': el.innerText,
+                'query': d.querySelector("input[name='q']").value,
+
+            }
+            cb(result);
+        });
+    }
+}
+
 
 
 let resultExtractors: ResultExtractor[] = [
     new GoogleExtractor(),
+    new DuckDuckGoExtractor(),
 ];
 
 
