@@ -26,26 +26,48 @@
           system,
           ...
         }:
+        let
+          histerPackage = pkgs.callPackage ./nix/package.nix { histerRev = inputs.self.rev or "unknown"; };
+        in
         {
-          packages.default = pkgs.callPackage ./nix/package.nix { histerRev = inputs.self.rev or "unknown"; };
-          packages.hister = pkgs.callPackage ./nix/package.nix { histerRev = inputs.self.rev or "unknown"; };
+          packages.default = histerPackage;
+          packages.hister = histerPackage;
 
           devShells.default = pkgs.mkShell {
-            packages = builtins.attrValues {
-              inherit (pkgs) go gopls gotools;
-            };
+            packages = builtins.attrValues { inherit (pkgs) go gopls gotools; };
           };
         };
 
       flake = {
         nixosModules.default = inputs.self.nixosModules.hister;
-        nixosModules.hister = import ./nix/nixos.nix;
+        nixosModules.hister =
+          { lib, pkgs, ... }:
+          {
+            imports = [ ./nix/nixos.nix ];
+            services.hister.package = (
+              lib.mkDefault inputs.self.packages.${pkgs.stdenvNoCC.hostPlatform.system}.default
+            );
+          };
 
         homeModules.default = inputs.self.homeModules.hister;
-        homeModules.hister = import ./nix/home.nix;
+        homeModules.hister =
+          { lib, pkgs, ... }:
+          {
+            imports = [ ./nix/home.nix ];
+            services.hister.package = (
+              lib.mkDefault inputs.self.packages.${pkgs.stdenvNoCC.hostPlatform.system}.default
+            );
+          };
 
         darwinModules.default = inputs.self.darwinModules.hister;
-        darwinModules.hister = import ./nix/darwin.nix;
+        darwinModules.hister =
+          { lib, pkgs, ... }:
+          {
+            imports = [ ./nix/darwin.nix ];
+            services.hister.package = (
+              lib.mkDefault inputs.self.packages.${pkgs.stdenvNoCC.hostPlatform.system}.default
+            );
+          };
       };
     };
 }
