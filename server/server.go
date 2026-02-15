@@ -20,13 +20,17 @@ import (
 	"github.com/asciimoo/hister/server/templates"
 
 	readability "codeberg.org/readeck/go-readability/v2"
-	"filippo.io/csrf"
+	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
 )
 
 var tpls map[string]*template.Template
 var fs http.Handler
+var sessionStore *sessions.CookieStore
+var errCSRFMismatch = errors.New("CSRF token mismatch")
+var storeName = "hister"
+var tokName = "csrf_token"
 
 type tArgs map[string]any
 
@@ -35,10 +39,6 @@ type historyItem struct {
 	Title  string `json:"title"`
 	Query  string `json:"query"`
 	Delete bool   `json:"delete"`
-}
-type csrfExceptionHandler struct {
-	origHandler http.Handler
-	csrfHandler http.Handler
 }
 
 type loggingResponseWriter struct {
@@ -67,14 +67,6 @@ func (lrw *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) 
 	return hj.Hijack()
 }
 
-func (c *csrfExceptionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/add" && strings.HasPrefix(r.Header.Get("Origin"), "moz-extension://") {
-		c.origHandler.ServeHTTP(w, r)
-	} else {
-		c.csrfHandler.ServeHTTP(w, r)
-	}
-}
-
 var tFns = template.FuncMap{
 	"FormatDate": func(t time.Time) string { return t.Format("2006-01-02") },
 	"FormatTime": func(t time.Time) string { return t.Format("2006-01-02 15:04:05") },
@@ -99,6 +91,7 @@ type webContext struct {
 	Response http.ResponseWriter
 	Config   *config.Config
 	nonce    string
+	csrf     string
 }
 
 func init() {
@@ -114,9 +107,14 @@ func init() {
 }
 
 func Listen(cfg *config.Config) {
+	sessionStore = sessions.NewCookieStore(cfg.SecretKey()[:32])
+	sessionStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   60 * 60 * 24 * 365,
+		HttpOnly: true,
+	}
 	handler := createRouter(cfg)
 
-	handler = withCSRF(handler, cfg)
 	handler = withLogging(handler)
 
 	log.Info().Str("Address", cfg.Server.Address).Str("URL", cfg.BaseURL("/")).Msg("Starting webserver")
@@ -142,31 +140,31 @@ func createRouter(cfg *config.Config) http.Handler {
 		c.Response.Header().Add("Content-Security-Policy", fmt.Sprintf("script-src 'nonce-%s'", c.nonce))
 		switch r.URL.Path {
 		case "/":
-			serveIndex(c)
+			withCSRF(c, serveIndex)
 			return
 		case "/search":
 			serveSearch(c)
 			return
 		case "/add":
-			serveAdd(c)
+			withCSRF(c, serveAdd)
 			return
 		case "/rules":
-			serveRules(c)
+			withCSRF(c, serveRules)
 			return
 		case "/help":
 			serveHelp(c)
 			return
 		case "/history":
-			serveHistory(c)
+			withCSRF(c, serveHistory)
 			return
 		case "/delete":
-			serveDeleteDocument(c)
+			withCSRF(c, serveDeleteDocument)
 			return
 		case "/delete_alias":
-			serveDeleteAlias(c)
+			withCSRF(c, serveDeleteAlias)
 			return
 		case "/add_alias":
-			serveAddAlias(c)
+			withCSRF(c, serveAddAlias)
 			return
 		case "/about":
 			serveAbout(c)
@@ -195,35 +193,56 @@ func createRouter(cfg *config.Config) http.Handler {
 	})
 }
 
-func withCSRF(h http.Handler, cfg *config.Config) http.Handler {
-	protection := csrf.New()
-	trustedOrigins := []string{
-		strings.TrimSuffix(cfg.BaseURL("/"), "/"),
-		"chrome-extension://cciilamhchpmbdnniabclekddabkifhb",
+func withCSRF(c *webContext, handler func(*webContext)) {
+	// Allow requests coming from the command line
+	if c.Request.Header.Get("Origin") == "hister://" {
+		handler(c)
+		return
 	}
-	if strings.HasPrefix(cfg.BaseURL("/"), "http://127.0.0.1") {
-		trustedOrigins = append(trustedOrigins, "http://localhost")
-	}
-	if strings.HasPrefix(cfg.BaseURL("/"), "http://localhost") {
-		trustedOrigins = append(trustedOrigins, "http://127.0.0.1")
-	}
-	for _, o := range trustedOrigins {
-		if err := protection.AddTrustedOrigin(o); err != nil {
-			panic(err)
+	// Allow /add requests from the addons
+	if c.Request.URL.Path == "/add" {
+		if strings.HasPrefix(c.Request.Header.Get("Origin"), "moz-extension://") {
+			handler(c)
+			return
+		}
+		if c.Request.Header.Get("Origin") == "chrome-extension://cciilamhchpmbdnniabclekddabkifhb" {
+			handler(c)
+			return
 		}
 	}
-	ch := protection.Handler(h)
-	// TODO
-	// WARNING this is a temporary solution, until we find out how to
-	// do proper CSRF protection with Firefox extensions.
-	// The problem comes from Firefox generating a dynamic internal ID
-	// for each addon install and uses that ID in the Origin HTTP header,
-	// so we can't check it to identify our addon.
-	handler := &csrfExceptionHandler{
-		origHandler: h,
-		csrfHandler: ch,
+
+	session, err := sessionStore.Get(c.Request, storeName)
+	if err != nil {
+		http.Error(c.Response, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	return handler
+	method := c.Request.Method
+	safeRequest := strings.HasPrefix(c.Request.Header.Get("Origin"), c.Config.BaseURL("/")) || c.Request.Header.Get("Origin") == "same-origin"
+	if method != http.MethodGet && method != http.MethodHead && !safeRequest {
+		sToken, ok := session.Values[tokName].(string)
+		if !ok {
+			http.Error(c.Response, errCSRFMismatch.Error(), http.StatusInternalServerError)
+			return
+		}
+		token := c.Request.FormValue(tokName)
+		if token == "" {
+			token = c.Request.Header.Get("X-CSRF-Token")
+		}
+		if token != sToken {
+			http.Error(c.Response, errCSRFMismatch.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	tok := rand.Text()
+	session.Values[tokName] = tok
+	err = session.Save(c.Request, c.Response)
+	if err != nil {
+		http.Error(c.Response, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c.csrf = tok
+	c.Response.Header().Add("X-CSRF-Token", tok)
+	handler(c)
 }
 func withLogging(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -563,6 +582,7 @@ func (c *webContext) Render(tpl string, args tArgs) {
 	}
 	args["Config"] = c.Config
 	args["Nonce"] = c.nonce
+	args["CSRF"] = c.csrf
 	t, ok := tpls[tpl]
 	if !ok {
 		log.Error().Str("template", tpl).Msg("template not found")

@@ -172,6 +172,7 @@ var deleteCmd = &cobra.Command{
 			}
 			client := &http.Client{Timeout: 5 * time.Second}
 			req, err := http.NewRequest("POST", cfg.BaseURL("/delete"), strings.NewReader(formData.Encode()))
+			req.Header.Set("Origin", "hister://")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			resp, err := client.Do(req)
 			if err != nil {
@@ -449,6 +450,7 @@ func indexURL(u string) error {
 	}
 	histerClient := &http.Client{}
 	req, err = http.NewRequest("POST", cfg.BaseURL("/add"), bytes.NewBuffer(dj))
+	req.Header.Set("Origin", "hister://")
 	req.Header.Set("content-Type", "application/json")
 	resp, err := histerClient.Do(req)
 	if err != nil {

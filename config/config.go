@@ -5,6 +5,7 @@
 package config
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ type Config struct {
 	Hotkeys                  Hotkeys           `yaml:"hotkeys"`
 	SensitiveContentPatterns map[string]string `yaml:"sensitive_content_patterns"`
 	Rules                    *Rules            `yaml:"-"`
+	secretKey                []byte
 }
 
 type App struct {
@@ -60,6 +62,7 @@ type Rule struct {
 
 type Aliases map[string]string
 
+var secretKeyFilename = ".secret_key"
 var hotkeyKeyRe *regexp.Regexp = regexp.MustCompile("^((ctrl|alt|meta)\\+)?([a-z0-9/?]|enter|tab|arrow(up|down|right|left))$")
 var hotkeyActions = []string{
 	"select_previous_result",
@@ -244,14 +247,28 @@ func (c *Config) init() error {
 	if err := c.Hotkeys.Validate(); err != nil {
 		return err
 	}
+	sPath := c.FullPath(secretKeyFilename)
+	b, err := os.ReadFile(sPath)
+	if err != nil {
+		c.secretKey = []byte(rand.Text() + rand.Text())
+		if err := os.WriteFile(sPath, c.secretKey, 0644); err != nil {
+			return fmt.Errorf("Failed to create secret key file: %w", err)
+		}
+	} else {
+		c.secretKey = b
+	}
 	return c.LoadRules()
+}
+
+func (c *Config) SecretKey() []byte {
+	return c.secretKey
 }
 
 func (c *Config) FullPath(f string) string {
 	if strings.HasPrefix(f, "/") {
 		return f
 	}
-	if strings.HasPrefix(f, ".") {
+	if strings.HasPrefix(f, "./") || strings.HasPrefix(f, "../") {
 		ex, err := os.Executable()
 		if err != nil {
 			return f

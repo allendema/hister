@@ -2,6 +2,7 @@ let ws;
 let input = document.getElementById("search");
 let autocompleteEl = document.getElementById("autocomplete");
 let results = document.getElementById("results");
+let csrf = document.getElementById("csrf_token");
 let emptyImg = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 let urlState = {};
 let lastResults = null;
@@ -241,13 +242,14 @@ function openResult(e, newWindow) {
     if(e.preventDefault) {
         e.preventDefault();
     }
+    if (e.ctrlKey) {
+        newWindow = true;
+    }
     let link = e.target.closest('.result-title a')
     let url = link.getAttribute("href");
     let title = link.innerText;
     if(!link.classList.contains("error")) {
-        saveHistoryItem(url, title, input.value).then((r) => {
-            openUrl(url, newWindow);
-        });
+        saveHistoryItem(url, title, input.value, false, r => openUrl(url, newWindow));
     } else {
         openUrl(url, newWindow);
     }
@@ -313,9 +315,7 @@ function createResult(r) {
 
 function clickHandler(e, leftClickCallback, middleClickCallback) {
     e.addEventListener("click", ev => {
-        if (ev.ctrlKey) {
-            leftClickCallback(true);
-        }
+        leftClickCallback(ev);
     });
 	e.addEventListener("auxclick", ev => {
 		if (ev.button == 1) {
@@ -336,7 +336,11 @@ function openReadable(e) {
     let url = link.getAttribute("href");
     let title = link.innerText;
     let h = `<h1><a href="${url}">${title}</a></h1>`;
-    fetch(e.target.getAttribute("data-href")).then(resp => resp.text()).then(t => openPopup(h, t));
+    request(
+        e.target.getAttribute("data-href"),
+        {},
+        resp => resp.text().then(t => openPopup(h, t))
+    );
     return false;
 }
 
@@ -416,9 +420,9 @@ function updatePriorityResult(e, remove) {
     if(!query) {
         return;
     }
-    saveHistoryItem(url, title, query, remove).then((r) => {
+    saveHistoryItem(url, title, query, remove, r => {
         let tpl;
-        if(r.status_code == 200) {
+        if(r.status == 200) {
             tpl = createTemplate("success", {
                 ".message": (e) => e.innerText = `Priority result ${remove ? "deleted" : "added"}.`,
             });
@@ -436,20 +440,26 @@ function deleteResult(e) {
     let result = e.closest(".result");
     let url = result.querySelector(".result-title a").getAttribute("href");
     let data = new URLSearchParams({"url": url});
-    fetch("/delete", {
-        method: "POST",
-        body: data,
-    }).then((r) => {
-        result.remove();
-    });
+    request(
+        "/delete",
+        {
+            method: "POST",
+            body: data,
+        },
+        r => result.remove()
+    );
 }
 
-function saveHistoryItem(url, title, query, remove) {
-    return fetch("/history", {
-        method: "POST",
-        body: JSON.stringify({"url": url, "title": title, "query": query, "delete": remove}),
-        headers: {"Content-type": "application/json; charset=UTF-8"},
-    })
+function saveHistoryItem(url, title, query, remove, callback) {
+    return request(
+        "/history",
+        {
+            method: "POST",
+            body: JSON.stringify({"url": url, "title": title, "query": query, "delete": remove}),
+            headers: {"Content-type": "application/json; charset=UTF-8" },
+        },
+        callback
+    );
 }
 
 let highlightIdx = 0;
@@ -645,6 +655,23 @@ function escapeXML(s) {
 
 String.prototype.replaceAt = function(index, replacement) {
     return this.substring(0, index) + replacement + this.substring(index + replacement.length);
+}
+
+function request(url, params, callback) {
+    if(!params) {
+        params = {};
+    }
+    if(!params.headers) {
+        params.headers = {};
+    }
+    let csrfH = 'X-CSRF-Token';
+    params.headers[csrfH] = csrf.value;
+    return fetch(url, params).then(r => {
+        if(r.headers.get(csrfH)) {
+            csrf.value = r.headers.get(csrfH);
+        }
+        callback(r);
+    });
 }
 
 init();

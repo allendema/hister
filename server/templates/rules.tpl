@@ -1,4 +1,5 @@
 {{define "main"}}
+{{ $CSRF := .CSRF }}
 <div class="container full-width">
     <form method="post">
         <h2>Skip Rules</h2>
@@ -10,6 +11,7 @@
         <p>Define regexps to prioritize matching URLs</p>
         <textarea placeholder="Text..." name="priority" class="full-width" >{{ Join .Config.Rules.Priority.ReStrs "\n" }}</textarea>
         <br />
+        <input type="hidden" value="{{ $CSRF }}" name="csrf_token" />
         <input type="submit" value="Save" class="mt-1" />
     </form>
         <h2>Search Keyword Aliases</h2>
@@ -18,7 +20,17 @@
         <table class="mv-1">
             <tr><th>Keyword</th><th>Value</th><th>Delete</th></tr>
             {{ range $k, $v := .Config.Rules.Aliases }}
-            <tr><td>{{ $k }}</td><td>{{ $v }}</td><td><form action="/delete_alias" method="post"><input type="hidden" value="{{ $k }}" name="alias" /><input type="submit" value="Delete" /></form></td></tr>
+            <tr>
+                <td>{{ $k }}</td>
+                <td>{{ $v }}</td>
+                <td>
+                    <form action="/delete_alias" method="post">
+                        <input type="hidden" value="{{ $k }}" name="alias" />
+                        <input type="hidden" value="{{ $CSRF }}" name="csrf_token" />
+                        <input type="submit" value="Delete" />
+                    </form>
+                </td>
+            </tr>
             {{ end }}
         </table>
         {{ else }}
@@ -30,6 +42,7 @@
                 <input type="text" name="alias-keyword" placeholder="Keyword..."  class="full-width" />
                 <input type="text" name="alias-value" placeholder="Value..."  class="full-width" />
                 <br />
+                <input type="hidden" value="{{ $CSRF }}" name="csrf_token" />
                 <input type="submit" value="Save" class="mt-1" />
             </form>
         </details>
