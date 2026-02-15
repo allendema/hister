@@ -232,7 +232,7 @@ func (d *Document) Process() error {
 	if d.processed {
 		return nil
 	}
-	if !d.skipSensitiveCheck && sensitiveContentRe.MatchString(d.HTML) {
+	if !d.skipSensitiveCheck && sensitiveContentRe != nil && sensitiveContentRe.MatchString(d.HTML) {
 		log.Debug().Msg("Matching sensitive content: " + strings.Join(sensitiveContentRe.FindAllString(d.HTML, -1), ","))
 		return ErrSensitiveContent
 	}
