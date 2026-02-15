@@ -15,6 +15,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -72,6 +73,34 @@ var hotkeyActions = []string{
 	"show_hotkeys",
 }
 
+func getDefaultDataDir() string {
+	switch runtime.GOOS {
+	case "darwin":
+		homeDir, _ := os.UserHomeDir()
+		return filepath.Join(homeDir, "Library/Application Support/hister")
+
+	case "windows":
+		localAppData := os.Getenv("LOCALAPPDATA")
+		if localAppData != "" {
+			return filepath.Join(localAppData, "hister")
+		}
+		// fallback to APPDATA
+		appData := os.Getenv("APPDATA")
+		return filepath.Join(appData, "hister")
+
+	default:
+		if xdgState := os.Getenv("XDG_STATE_HOME"); xdgState != "" {
+			return filepath.Join(xdgState, "hister")
+		}
+		if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
+			return filepath.Join(xdgData, "hister")
+		}
+		// fall back to ~/.config/hister
+		configDir, _ := os.UserConfigDir()
+		return filepath.Join(configDir, "hister")
+	}
+}
+
 func readConfigFile(filename string) ([]byte, string, error) {
 	b, err := os.ReadFile(filename)
 	if err == nil {
@@ -115,7 +144,7 @@ func CreateDefaultConfig() *Config {
 	return &Config{
 		App: App{
 			SearchURL: "https://google.com/search?q={query}",
-			Directory: "~/.config/hister/",
+			Directory: getDefaultDataDir(),
 			LogLevel:  "info",
 		},
 		Server: Server{
@@ -187,7 +216,30 @@ func (c *Config) init() error {
 		c.App.Directory = filepath.Join(dir, c.App.Directory[2:])
 	}
 	if err := os.MkdirAll(c.App.Directory, os.ModePerm); err != nil {
-		return err
+		isPermissionErr := errors.Is(err, os.ErrPermission) ||
+			strings.Contains(strings.ToLower(err.Error()), "permission denied") ||
+			strings.Contains(strings.ToLower(err.Error()), "operation not permitted")
+
+		if isPermissionErr {
+			home, _ := os.UserHomeDir()
+			useFallback := home == "/var/empty" || c.App.Directory != getDefaultDataDir()
+
+			if useFallback {
+				c.App.Directory = "/var/lib/hister"
+				log.Info().Str("directory", c.App.Directory).Str("fallback", "/var/lib/hister").Msg("System user detected, using system-wide data directory")
+			} else {
+				log.Warn().Str("directory", c.App.Directory).Msg("Cannot write to data directory. Set HISTER_DATA_DIR environment variable or configure app.directory")
+				return fmt.Errorf("cannot create data directory: %w. Set HISTER_DATA_DIR environment variable or configure app.directory in your config file", err)
+			}
+
+			c.App.Directory = "/var/lib/hister"
+		}
+
+		err = os.MkdirAll(c.App.Directory, os.ModePerm)
+
+		if err != nil {
+			return err
+		}
 	}
 	if err := c.Hotkeys.Validate(); err != nil {
 		return err

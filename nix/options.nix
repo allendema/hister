@@ -1,31 +1,58 @@
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  mkHisterEnv =
+    cfg:
+    lib.optionalAttrs (cfg.dataDir != null) {
+      HISTER_DATA_DIR = cfg.dataDir;
+    }
+    // lib.optionalAttrs (cfg.port != null) {
+      HISTER_PORT = builtins.toString cfg.port;
+    }
+    // lib.optionalAttrs (cfg.configPath != null) {
+      HISTER_CONFIG = builtins.toString cfg.configPath;
+    }
+    // lib.optionalAttrs (cfg.config != null) {
+      HISTER_CONFIG = "${(pkgs.formats.yaml { }).generate "hister-config.yml" cfg.config}";
+    };
+in
 {
   options.services.hister = {
     enable = lib.mkEnableOption "Hister web history service";
 
-    package = lib.mkPackageOption pkgs "hister" { };
-
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/hister";
-      description = "Directory where Hister stores its data.";
+    package = lib.mkOption {
+      type = lib.types.package;
+      description = "The hister package to use.";
     };
 
-    dataDirMode = lib.mkOption {
-      type = lib.types.str;
-      default = "0755";
-      description = "Permissions mode for the data directory.";
+    dataDir = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      example = "/var/lib/hister";
+      description = ''
+        Directory where Hister stores its data.
+        If set, this will override the `app.directory` setting in the configuration file.
+      '';
     };
 
     port = lib.mkOption {
-      type = lib.types.port;
-      default = 4433;
-      description = "Port on which Hister listens.";
+      type = lib.types.nullOr lib.types.port;
+      default = null;
+      example = 4433;
+      description = ''
+        Port on which Hister listens.
+        If set, this will override the `server.address` port in the configuration file.
+      '';
     };
 
     configPath = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
+      example = "/etc/hister/config.yml";
       description = "Path to an existing configuration file.";
     };
 
@@ -35,25 +62,32 @@
       description = "Configuration as a Nix attribute set. This will be converted to a YAML file.";
       example = {
         app = {
-          directory = "~/.config/hister/";
           search_url = "https://google.com/search?q={query}";
+          log_level = "info";
         };
         server = {
           address = "127.0.0.1:4433";
+          database = "db.sqlite3";
+        };
+        hotkeys = {
+          "/" = "focus_search_input";
+          "enter" = "open_result";
+          "alt+enter" = "open_result_in_new_tab";
+          "alt+j" = "select_next_result";
+          "alt+k" = "select_previous_result";
+          "alt+o" = "open_query_in_search_engine";
         };
       };
     };
+  };
 
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "hister";
-      description = "User account under which Hister runs.";
-    };
-
-    group = lib.mkOption {
-      type = lib.types.str;
-      default = "hister";
-      description = "Group under which Hister runs.";
-    };
+  config = {
+    assertions = [
+      {
+        assertion = !(config.services.hister.configPath != null && config.services.hister.config != null);
+        message = "Only one of services.hister.configPath and services.hister.config can be set";
+      }
+    ];
+    _module.args.histerEnv = mkHisterEnv;
   };
 }

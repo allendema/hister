@@ -170,119 +170,32 @@ Install permanently to your user profile:
 nix profile install github:asciimoo/hister
 ```
 
-### NixOS
+### Flake Setup
 
-Add the following to your `flake.nix`:
+Add the input to your `flake.nix`:
 
 ```nix
 {
   inputs.hister.url = "github:asciimoo/hister";
 
   outputs = { self, nixpkgs, hister, ... }: {
+    # For NixOS:
     nixosConfigurations.yourHostname = nixpkgs.lib.nixosSystem {
       modules = [
         ./configuration.nix
         hister.nixosModules.default
       ];
     };
-  };
-}
-```
 
-Then enable the service:
-
-```nix
-services.hister = {
-  enable = true;
-  port = 4433;
-  dataDir = "/var/lib/hister";
-  configPath = /path/to/config.yml; # optional, use existing YAML file
-  config = {  # optional, or use Nix attrset (automatically converted to YAML)
-    app = {
-      directory = "~/.config/hister/";
-      search_url = "https://google.com/search?q={query}";
-    };
-    server = {
-      address = "127.0.0.1:4433";
-    };
-  };
-};
-```
-
-**Note**: Only one of `configPath` or `config` can be set at a time.
-
-### Add to system packages
-
-If you don't want to use the system module, you can add the package directly to `environment.systemPackages` in your `configuration.nix`:
-
-**NixOS & Darwin (macOS):**
-
-```nix
-{ inputs, ... }: {
-  environment.systemPackages = [ inputs.hister.packages.${pkgs.system}.default ];
-}
-```
-
-### Add to user packages (Home-Manager)
-
-If you don't want to use the Home-Manager module, you can add the package directly to `home.packages` in your `home.nix`:
-
-```nix
-{ inputs, ... }: {
-  home.packages = [ inputs.hister.packages.${pkgs.system}.default ];
-}
-```
-
-### Home-Manager
-
-Add the following to your `flake.nix`:
-
-```nix
-{
-  inputs.hister.url = "github:asciimoo/hister";
-
-  outputs = { self, nixpkgs, home-manager, hister, ... }: {
+    # For Home-Manager:
     homeConfigurations."yourUsername" = home-manager.lib.homeManagerConfiguration {
       modules = [
         ./home.nix
         hister.homeModules.default
       ];
     };
-  };
-}
-```
 
-Then enable the service:
-
-```nix
-services.hister = {
-  enable = true;
-  port = 4433;
-  dataDir = "/home/yourUsername/.local/share/hister";
-  configPath = /path/to/config.yml; # optional, use existing YAML file
-  config = {  # optional, or use Nix attrset (automatically converted to YAML)
-    app = {
-      directory = "~/.config/hister/";
-      search_url = "https://google.com/search?q={query}";
-    };
-    server = {
-      address = "127.0.0.1:4433";
-    };
-  };
-};
-```
-
-**Note**: Only one of `configPath` or `config` can be set at a time.
-
-### Darwin (macOS)
-
-Add the following to your `flake.nix`:
-
-```nix
-{
-  inputs.hister.url = "github:asciimoo/hister";
-
-  outputs = { self, darwin, hister, ... }: {
+    # For Darwin (macOS):
     darwinConfigurations."yourHostname" = darwin.lib.darwinSystem {
       modules = [
         ./configuration.nix
@@ -293,22 +206,64 @@ Add the following to your `flake.nix`:
 }
 ```
 
-Then enable the service:
+### Service Configuration
+
+Enable and configure the service in your configuration file:
 
 ```nix
 services.hister = {
   enable = true;
-  port = 4433;
-  dataDir = "/Users/yourUsername/Library/Application Support/hister";
-  configPath = /path/to/config.yml; # optional
-  config = {  # optional, or use Nix attrset (automatically converted to YAML)
+
+  # Optional: Set via Nix options (takes precedence over config file)
+  # port = 4433;
+  # dataDir = "/var/lib/hister";  # NixOS Recommend: "/var/lib/hister"
+                                  # Home-Manager Recommend: "~/.local/share/hister"
+                                  # Darwin Recommend: "~/Library/Application Support/hister"
+
+  # Optional: Use existing YAML config file
+  # configPath = /path/to/config.yml;
+
+  # Optional: Inline configuration (converted to YAML)
+  # Note: Only one of configPath or config can be used
+  config = {
     app = {
-      directory = "~/.config/hister/";
       search_url = "https://google.com/search?q={query}";
+      log_level = "info";
     };
     server = {
       address = "127.0.0.1:4433";
+      database = "db.sqlite3";
+    };
+    hotkeys = {
+      "/" = "focus_search_input";
+      "enter" = "open_result";
+      "alt+enter" = "open_result_in_new_tab";
+      "alt+j" = "select_next_result";
+      "alt+k" = "select_previous_result";
+      "alt+o" = "open_query_in_search_engine";
     };
   };
 };
+```
+
+**Notes:**
+- The `port` and `dataDir` options override corresponding values in your config file
+- To manage settings through the config file only, leave `port` and `dataDir` unset
+
+### Add to Packages (Without Service)
+
+If you don't want to use the module system, add the package directly:
+
+**System packages (NixOS/Darwin):**
+```nix
+{ inputs, pkgs, ... }: {
+  environment.systemPackages = [ inputs.hister.packages.${pkgs.stdenvNoCC.hostPlatform.system}.default ];
+}
+```
+
+**User packages (Home-Manager):**
+```nix
+{ inputs, pkgs, ... }: {
+  home.packages = [ inputs.hister.packages.${pkgs.stdenvNoCC.hostPlatform.system}.default ];
+}
 ```
