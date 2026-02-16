@@ -51,6 +51,12 @@ func (e singleLineEditor) Edit(v *gocui.View, key gocui.Key, ch rune, mod gocui.
 		return
 	case key == gocui.KeyEnter:
 		return
+	case key == gocui.KeyCtrlW:
+		e.deleteWord(v)
+		if e.callback != nil {
+			e.callback()
+		}
+		return
 	case key == gocui.KeyArrowRight:
 		ox, _ := v.Cursor()
 		if ox >= len(v.Buffer())-1 {
@@ -73,6 +79,45 @@ func (e singleLineEditor) Edit(v *gocui.View, key gocui.Key, ch rune, mod gocui.
 	e.editor.Edit(v, key, ch, mod)
 	if e.callback != nil {
 		e.callback()
+	}
+}
+
+func (e singleLineEditor) deleteWord(v *gocui.View) {
+	cx, _ := v.Cursor()
+	if cx == 0 {
+		return
+	}
+
+	line := v.Buffer()
+	if len(line) == 0 {
+		return
+	}
+
+	ox, _ := v.Origin()
+	pos := ox + cx
+
+	if pos > len(line) {
+		pos = len(line)
+	}
+
+	start := pos - 1
+	for start > 0 && line[start] == ' ' {
+		start--
+	}
+	for start > 0 && line[start-1] != ' ' {
+		start--
+	}
+
+	newLine := line[:start] + line[pos:]
+	v.Clear()
+	fmt.Fprint(v, newLine)
+
+	newCursorPos := start - ox
+	if newCursorPos < 0 {
+		v.SetOrigin(start, 0)
+		v.SetCursor(0, 0)
+	} else {
+		v.SetCursor(newCursorPos, 0)
 	}
 }
 
