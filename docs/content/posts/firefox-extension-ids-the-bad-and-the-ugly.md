@@ -126,6 +126,11 @@ Whatever the reason is, the current behavior has serious flaws.
 <q>You know the issue is serious when even Chrome has a more privacy-respecting solution to the problem</q>
 
 
+#### UPDATE (2026.02.16)
+
+[Seems like](https://bugzilla.mozilla.org/show_bug.cgi?id=1372288) their goal was to prevent **extension fingerprinting**.
+
+
 ## The Developer Perspective
 
 As someone building an free software project that prioritizes privacy and local-first architecture, Firefox's behavior is frustrating:
