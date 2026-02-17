@@ -32,6 +32,9 @@
         </div>
         <div>Total number of results: <b class="results-num"></b></div>
         <div class="expanded-query"></div>
+        <div class="sort-buttons">
+            Sort by: <a class="sort-relevance active">Relevance</a> | <a class="sort-domain">Domain</a>
+        </div>
         <div class="export-buttons">
             Export: <a class="export-json">JSON</a> | <a class="export-csv">CSV</a> | <a class="export-rss">RSS</a>
         </div>

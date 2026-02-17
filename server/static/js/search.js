@@ -8,6 +8,7 @@ let openResultsOnNewTab = document.getElementById("open-results-on-new-tab").val
 let emptyImg = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 let urlState = {};
 let lastResults = null;
+let currentSort = "";
 let templates = {};
 for(let el of document.querySelectorAll("template")) {
     let id = el.getAttribute("id")
@@ -98,6 +99,9 @@ function updateConnectionStatus(connected) {
 
 function sendQuery(q) {
     let message = {"text": q, "highlight": "HTML"};
+    if(currentSort) {
+        message.sort = currentSort;
+    }
     ws.send(JSON.stringify(message));
 }
 
@@ -157,6 +161,28 @@ input.addEventListener("input", () => {
 function handleInput() {
     updateURL();
     sendQuery(input.value);
+}
+
+function setSort(sort) {
+    if(currentSort === sort) {
+        return;
+    }
+    currentSort = sort;
+    updateSortButtons();
+    if(input.value) {
+        sendQuery(input.value);
+    }
+}
+
+function updateSortButtons() {
+    document.querySelectorAll(".sort-relevance, .sort-domain").forEach(btn => {
+        btn.classList.remove("active");
+    });
+    if(currentSort === "") {
+        document.querySelector(".sort-relevance")?.classList.add("active");
+    } else if(currentSort === "domain") {
+        document.querySelector(".sort-domain")?.classList.add("active");
+    }
 }
 
 function createTips() {
@@ -279,6 +305,24 @@ function createResultsHeader(res) {
         ".export-json": (e) => e.addEventListener("click", () => exportJSON()),
         ".export-csv": (e) => e.addEventListener("click", () => exportCSV()),
         ".export-rss": (e) => e.addEventListener("click", () => exportRSS()),
+        ".sort-relevance": (e) => {
+            e.addEventListener("click", () => {
+                setSort("");
+            });
+            e.classList.remove("active");
+            if(currentSort === "") {
+                e.classList.add("active");
+            }
+        },
+        ".sort-domain": (e) => {
+            e.addEventListener("click", () => {
+                setSort("domain");
+            });
+            e.classList.remove("active");
+            if(currentSort === "domain") {
+                e.classList.add("active");
+            }
+        },
         "#external-search-link": (e) => {
             if(input.value.trim()) {
                 e.href = getSearchUrl(input.value);
