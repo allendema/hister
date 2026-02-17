@@ -2,6 +2,7 @@
 date = '2026-02-10T22:57:22+01:00'
 draft = false
 title = 'How Hister Works'
+description = 'High level explaination about how Hister works by breaking down its four main components'
 +++
 
 # How Hister Works

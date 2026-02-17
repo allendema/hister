@@ -1,3 +1,11 @@
+{{ define "head" }}
+<meta property="og:title" content="{{ .Title }}" />
+<meta property="og:description" content="Blazing fast, content-based search for visited websites. Index the full content of web pages you visit, enabling meaningful search across your browsing history." />
+{{- with resources.Get "logo.png" }}
+<meta property="og:image" content="{{ .Permalink }}" />
+{{- end }}
+{{ end }}
+
 {{ define "main" }}
 <main>
 	<header>
@@ -6,7 +14,7 @@
 {{- end }}
 		<h3 class="tagline">Web History on Steroids</h3>
 		<p style="">
-			Blazing fast, content-based search for visited websites.<br />Index the full content of web pages you visit, enabling deep and meaningful search across your browsing history.
+			Blazing fast, content-based search for visited websites.<br />Index the full content of web pages you visit, enabling meaningful search across your browsing history.
 		</p>
 		<div class="cta-buttons">
 			<a href="https://demo.hister.org/" class="btn btn-secondary">Read-only Demo</a>

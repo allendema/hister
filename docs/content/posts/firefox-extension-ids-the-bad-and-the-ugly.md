@@ -2,6 +2,7 @@
 date = '2026-02-12T17:27:42+01:00'
 draft = false
 title = 'Firefox Extension IDs: The Bad and the Ugly'
+description = 'Firefox extensions use unique internal UUIDs per installation instead of static IDs in the Origin HTTP header thatcreates privacy nightmare and makes CSRF protection harder to implement for extension-to-server communication'
 +++
 
 # Firefox Extension IDs: The Bad and the Ugly

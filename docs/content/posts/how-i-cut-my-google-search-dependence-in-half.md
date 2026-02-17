@@ -2,6 +2,8 @@
 date = '2026-02-09T11:47:24+01:00'
 draft = false
 title = 'How I Cut My Google Search Dependence in Half'
+description = 'I built Hister, a self-hosted web history search tool that indexes visited pages locally. In just 1.5 months, I reduced my reliance on Google Search by 50%'
+aliases = ['cut-google-search-dependence', 'google-dependence']
 +++
 
 # How I Cut My Google Search Dependence in Half
