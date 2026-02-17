@@ -1,6 +1,7 @@
 {
   lib,
   buildGoModule,
+  sqlite,
   histerRev ? "unknown",
 }:
 let
@@ -12,7 +13,14 @@ buildGoModule (finalAttrs: {
 
   src = ../.;
 
-  vendorHash = "sha256-WCdT1laLH+ucrnUaiP10R5O2GCeB74mkJBez2J31IBg=";
+  vendorHash = "sha256-BoM5CN57UuuxCaf1myyQxUyT2N1uGy+IjpCvDJmfvAU=";
+
+  buildInputs = [ sqlite ];
+
+  preBuild = ''
+    export CGO_CFLAGS="-I${sqlite.dev}/include"
+    export CGO_LDFLAGS="-L${sqlite.out}/lib -lsqlite3"
+  '';
 
   ldflags = [
     "-s"

@@ -6,14 +6,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/asciimoo/hister/config"
 	"github.com/asciimoo/hister/server/indexer"
 	"github.com/asciimoo/hister/server/model"
 
-	"github.com/fatih/color"
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gorilla/websocket"
-	"github.com/jroimartin/gocui"
 	"github.com/pkg/browser"
 )
 
@@ -24,447 +27,611 @@ const Banner = `
 `
 
 var (
-	boldWhite = color.New(color.FgWhite, color.Bold).SprintFunc()
-	blue      = color.New(color.FgBlue).SprintFunc()
-	gray      = color.New(color.FgHiBlack).SprintFunc()
-	red       = color.New(color.FgRed, color.Bold).SprintFunc()
+	blue  = lipgloss.Color("12")
+	white = lipgloss.Color("15")
+	gray  = lipgloss.Color("245")
+	red   = lipgloss.Color("9")
+	green = lipgloss.Color("10")
+
+	bannerStyle  = lipgloss.NewStyle().Foreground(blue).Align(lipgloss.Center)
+	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(white)
+	urlStyle     = lipgloss.NewStyle().Foreground(blue)
+	histStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	selTitle     = lipgloss.NewStyle().Bold(true).Foreground(blue)
+	grayStyle    = lipgloss.NewStyle().Foreground(gray)
+	secTextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Faint(true).Italic(true)
+	dialogStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(red).Padding(1, 2)
+	helpStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(blue).Padding(1, 2)
+	statusStyle  = lipgloss.NewStyle().Foreground(white)
+	connStyle    = lipgloss.NewStyle().Foreground(green).Bold(true)
+	discStyle    = lipgloss.NewStyle().Foreground(red).Bold(true)
+	focusStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(blue)
+	blurStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240"))
+	thumbStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	trackStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(2)
+	selectedItemStyle = lipgloss.NewStyle().
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderLeft(true).
+				BorderForeground(blue).
+				PaddingLeft(1)
 )
 
-type tui struct {
-	SearchInput *gocui.View
-	ResultsView *gocui.View
-	conn        *websocket.Conn
-	g           *gocui.Gui
-	results     *indexer.Results
-	selectedIdx int
-	lineOffsets []int
-	cfg         *config.Config
-}
+type viewState int
 
-type singleLineEditor struct {
-	editor   gocui.Editor
-	callback func()
-}
+const (
+	stateInput viewState = iota
+	stateResults
+	stateDialog
+	stateHelp
+)
 
-type query struct {
+type searchQuery struct {
 	Text      string `json:"text"`
 	Highlight string `json:"highlight"`
+	Limit     int    `json:"limit"`
 }
 
-func newTUI(cfg *config.Config) (*tui, error) {
-	t := &tui{cfg: cfg}
-	return t, t.init(cfg.WebSocketURL())
+type resultsMsg struct{ results *indexer.Results }
+type errMsg struct{ err error }
+type wsConnectedMsg struct{}
+type wsDisconnectedMsg struct{}
+type reconnectMsg struct{}
+
+type tuiModel struct {
+	textInput     textinput.Model
+	viewport      viewport.Model
+	state         viewState
+	prevState     viewState
+	cfg           *config.Config
+	results       *indexer.Results
+	selectedIdx   int
+	limit         int
+	width, height int
+	ready         bool
+	lineOffsets   []int
+	totalLines    int
+	conn          *websocket.Conn
+	wsChan        chan tea.Msg
+	wsDone        chan struct{}
+	wsReady       bool
+	dialogMsg     string
+	dialogConfirm func() tea.Cmd
 }
 
-func (e singleLineEditor) Edit(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
-	switch {
-	case (ch != 0 || key == gocui.KeySpace) && mod == 0:
-		e.editor.Edit(v, key, ch, mod)
-		if e.callback != nil {
-			e.callback()
-		}
-		return
-	case key == gocui.KeyCtrlW:
-		e.deleteWord(v)
-		if e.callback != nil {
-			e.callback()
-		}
-		return
-	case key == gocui.KeyArrowRight:
-		ox, _ := v.Cursor()
-		if ox >= len(v.Buffer())-1 {
-			return
-		}
-	case key == gocui.KeyHome || key == gocui.KeyArrowUp:
-		v.SetCursor(0, 0)
-		v.SetOrigin(0, 0)
-		return
-	case key == gocui.KeyEnd || key == gocui.KeyArrowDown:
-		width, _ := v.Size()
-		lineWidth := len(v.Buffer()) - 1
-		if lineWidth > width {
-			v.SetOrigin(lineWidth-width, 0)
-			lineWidth = width - 1
-		}
-		v.SetCursor(lineWidth, 0)
-		return
-	}
-	e.editor.Edit(v, key, ch, mod)
-	if e.callback != nil {
-		e.callback()
-	}
-}
-
-func (e singleLineEditor) deleteWord(v *gocui.View) {
-	cx, _ := v.Cursor()
-	if cx == 0 {
-		return
-	}
-
-	line := v.Buffer()
-	if len(line) == 0 {
-		return
-	}
-
-	ox, _ := v.Origin()
-	pos := min(ox+cx, len(line))
-
-	start := pos - 1
-	for start > 0 && line[start] == ' ' {
-		start--
-	}
-	for start > 0 && line[start-1] != ' ' {
-		start--
-	}
-
-	newLine := line[:start] + line[pos:]
-	v.Clear()
-	fmt.Fprint(v, newLine)
-
-	newCursorPos := start - ox
-	if newCursorPos < 0 {
-		v.SetOrigin(start, 0)
-		v.SetCursor(0, 0)
-	} else {
-		v.SetCursor(newCursorPos, 0)
+func initialModel(cfg *config.Config) *tuiModel {
+	ti := textinput.New()
+	ti.Placeholder = "Search..."
+	ti.Focus()
+	ti.CharLimit = 200
+	ti.Width = 50
+	return &tuiModel{
+		textInput:   ti,
+		state:       stateInput,
+		prevState:   stateInput,
+		cfg:         cfg,
+		selectedIdx: -1,
+		limit:       10,
+		wsChan:      make(chan tea.Msg, 10),
+		wsDone:      make(chan struct{}),
 	}
 }
 
-type keybinding struct {
-	view    string
-	key     interface{}
-	mod     gocui.Modifier
-	handler func(g *gocui.Gui, v *gocui.View) error
+func (m *tuiModel) Init() tea.Cmd {
+	return tea.Batch(textinput.Blink, m.connectWebSocket(), m.listenToWebSocket())
 }
 
-func SearchTUI(cfg *config.Config) error {
-	g, err := gocui.NewGui(gocui.OutputNormal)
-	if err != nil {
-		return err
-	}
-	defer g.Close()
-
-	g.Cursor = true
-
-	t, err := newTUI(cfg)
-	if err != nil {
-		return err
-	}
-	defer t.close()
-
-	t.g = g
-
-	g.SetManagerFunc(t.layout)
-
-	quit := func(g *gocui.Gui, v *gocui.View) error {
-		return gocui.ErrQuit
-	}
-
-	nop := func(g *gocui.Gui, v *gocui.View) error { return nil }
-
-	keybindings := []keybinding{
-		{"", gocui.KeyCtrlC, gocui.ModNone, quit},
-
-		{"search-input", gocui.KeyTab, gocui.ModNone, t.enterResultsMode},
-		{"search-input", gocui.KeyEnter, gocui.ModNone, nop},
-
-		{"results", 'j', gocui.ModNone, t.moveCursor(1)},
-		{"results", 'k', gocui.ModNone, t.moveCursor(-1)},
-		{"results", gocui.KeyArrowDown, gocui.ModNone, t.moveCursor(1)},
-		{"results", gocui.KeyArrowUp, gocui.ModNone, t.moveCursor(-1)},
-
-		{"results", gocui.KeyEnter, gocui.ModNone, t.openSelected},
-		{"results", 'd', gocui.ModNone, t.deleteSelected},
-		{"results", gocui.KeyTab, gocui.ModNone, t.exitResultsMode},
-	}
-
-	for _, kb := range keybindings {
-		if err := g.SetKeybinding(kb.view, kb.key, kb.mod, kb.handler); err != nil {
-			return err
-		}
-	}
-
-	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
-		return err
-	}
-	return nil
-}
-
-func (t *tui) init(wsurl string) error {
-	var err error
-	t.conn, _, err = websocket.DefaultDialer.Dial(wsurl, nil)
-	if err != nil {
-		return err
-	}
-	go func() {
-		for {
-			_, msg, err := t.conn.ReadMessage()
-			if err != nil {
-				// TODO
-				return
-			}
-			t.handleResults(msg)
-		}
-	}()
-	return nil
-}
-
-func (t *tui) layout(g *gocui.Gui) error {
-	maxX, maxY := g.Size()
-	bannerW := 24
-	bannerH := 5
-	if v, err := g.SetView("banner", maxX/2-bannerW/2-1, 0, maxX/2+bannerW/2, bannerH); err != nil {
-		if err != gocui.ErrUnknownView {
-			return err
-		}
-		v.Frame = false
-		v.FgColor = gocui.ColorBlue
-		fmt.Fprintf(v, "%s", Banner)
-	}
-	if v, err := g.SetView("search-input", 5, 5, maxX-6, 7); err != nil {
-		if err != gocui.ErrUnknownView {
-			return err
-		}
-		v.Title = "Search"
-		v.Editable = true
-		v.Editor = singleLineEditor{
-			editor:   gocui.DefaultEditor,
-			callback: t.search,
-		}
-		t.SearchInput = v
-		g.SetCurrentView(v.Name())
-	}
-	if v, err := g.SetView("results", 0, 8, maxX-1, maxY-1); err != nil {
-		if err != gocui.ErrUnknownView {
-			return err
-		}
-		v.Frame = false
-		v.Wrap = false
-		v.Overwrite = true
-		v.Autoscroll = false
-		v.Highlight = true
-		v.SelBgColor = gocui.ColorBlue
-		v.SelFgColor = gocui.ColorWhite
-		t.ResultsView = v
-	}
-	return nil
-}
-
-func (t *tui) search() {
-	if t.Query() == "" {
-		t.ResultsView.Clear()
-		return
-	}
-	q := query{
-		Text:      t.Query(),
-		Highlight: "text",
-	}
-	b, err := json.Marshal(q)
-	// TODO error handling
-	if err != nil {
-		return
-	}
-	t.conn.WriteMessage(websocket.TextMessage, b)
-}
-
-func (t *tui) handleResults(msg []byte) {
-	var res *indexer.Results
-	if err := json.Unmarshal(msg, &res); err != nil {
-		// TODO
-		return
-	}
-	t.results = res
-	if t.selectedIdx >= t.getTotalResults() {
-		t.selectedIdx = t.getTotalResults() - 1
-	}
-	if t.selectedIdx < 0 && t.getTotalResults() > 0 {
-		t.selectedIdx = 0
-	}
-	t.renderResults()
-}
-
-func (t *tui) renderResults() {
-	t.g.Update(func(_ *gocui.Gui) error {
-		t.ResultsView.Clear()
-		t.lineOffsets = make([]int, 0, t.getTotalResults())
-		if t.results == nil || (len(t.results.Documents) == 0 && len(t.results.History) == 0) {
-			if t.Query() != "" {
-				fmt.Fprintf(t.ResultsView, "%s", gray("No results found"))
-			}
+func (m *tuiModel) listenToWebSocket() tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case msg := <-m.wsChan:
+			return msg
+		case <-m.wsDone:
 			return nil
 		}
-
-		currentLine := 0
-		for _, r := range t.results.History {
-			t.lineOffsets = append(t.lineOffsets, currentLine)
-			currentLine += t.renderHistoryItem(r)
-		}
-		for _, r := range t.results.Documents {
-			t.lineOffsets = append(t.lineOffsets, currentLine)
-			currentLine += t.renderResult(r)
-		}
-		return nil
-	})
-}
-
-func (t *tui) enterResultsMode(g *gocui.Gui, v *gocui.View) error {
-	g.Cursor = false
-	_, err := g.SetCurrentView("results")
-	if err != nil {
-		return err
-	}
-	if t.selectedIdx < 0 && t.getTotalResults() > 0 {
-		t.selectedIdx = 0
-	}
-	t.setCursorToSelected()
-	return nil
-}
-
-func (t *tui) exitResultsMode(g *gocui.Gui, v *gocui.View) error {
-	g.Cursor = true
-	_, err := g.SetCurrentView("search-input")
-	return err
-}
-
-func (t *tui) moveCursor(delta int) func(*gocui.Gui, *gocui.View) error {
-	return func(g *gocui.Gui, v *gocui.View) error {
-		newIdx := t.selectedIdx + delta
-		if t.results != nil && newIdx >= 0 && newIdx < t.getTotalResults() {
-			t.selectedIdx = newIdx
-			t.refreshResultsWithCursor()
-		}
-		return nil
 	}
 }
 
-func (t *tui) refreshResultsWithCursor() {
-	t.renderResults()
-	t.setCursorToSelected()
+func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		bannerH := 5
+		if m.height < 15 {
+			bannerH = 0
+		}
+		vpH := max(0, m.height-bannerH-8)
+		vpW := max(1, m.width-6)
+		m.textInput.Width = m.width - 6
+
+		if !m.ready {
+			m.viewport = viewport.New(vpW, vpH)
+			m.viewport.SetContent("")
+			m.ready = true
+		} else {
+			m.viewport.Width, m.viewport.Height = vpW, vpH
+			m.viewport.SetContent(m.renderResults())
+			m.scrollToSelected()
+		}
+		return m, nil
+	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		switch m.state {
+		case stateDialog:
+			return m.handleDialogKeys(msg)
+		case stateInput:
+			return m.handleInputKeys(msg)
+		case stateResults:
+			return m.handleResultsKeys(msg)
+		case stateHelp:
+			m.state = m.prevState
+			var cmd tea.Cmd
+			if m.state == stateInput {
+				cmd = m.textInput.Focus()
+			}
+			return m, cmd
+		}
+	case resultsMsg:
+		m.results = msg.results
+		if m.selectedIdx >= m.getTotalResults() {
+			m.selectedIdx = m.getTotalResults() - 1
+		}
+		if m.selectedIdx < 0 && m.getTotalResults() > 0 {
+			m.selectedIdx = 0
+		}
+		m.viewport.SetContent(m.renderResults())
+		m.scrollToSelected()
+		return m, m.listenToWebSocket()
+	case wsConnectedMsg:
+		m.wsReady = true
+		return m, m.listenToWebSocket()
+	case wsDisconnectedMsg:
+		m.wsReady = false
+		return m, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return reconnectMsg{} })
+	case reconnectMsg:
+		return m, m.connectWebSocket()
+	case errMsg:
+		return m, m.listenToWebSocket()
+	}
+	return m, nil
 }
 
-func (t *tui) setCursorToSelected() {
-	if t.results == nil || t.selectedIdx < 0 || t.selectedIdx >= len(t.lineOffsets) {
+func (m *tuiModel) handleInputKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	action := m.cfg.Hotkeys.TUI[msg.String()]
+	if msg.Type == tea.KeyRunes {
+		action = ""
+	}
+	switch action {
+	case "quit":
+		return m, tea.Quit
+	case "toggle_help":
+		m.prevState, m.state = m.state, stateHelp
+		m.textInput.Blur()
+		return m, nil
+	case "toggle_focus":
+		if m.getTotalResults() > 0 {
+			m.state = stateResults
+			m.textInput.Blur()
+			if m.selectedIdx < 0 {
+				m.selectedIdx = 0
+			}
+			m.viewport.SetContent(m.renderResults())
+			m.scrollToSelected()
+		}
+		return m, nil
+	}
+	var cmd tea.Cmd
+	oldVal := m.textInput.Value()
+	m.textInput, cmd = m.textInput.Update(msg)
+	if m.textInput.Value() != oldVal {
+		m.limit = 10
+		return m, tea.Batch(cmd, m.search())
+	}
+	return m, cmd
+}
+
+func (m *tuiModel) handleResultsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	action := m.cfg.Hotkeys.TUI[msg.String()]
+	switch action {
+	case "quit":
+		return m, tea.Quit
+	case "toggle_help":
+		m.prevState, m.state = m.state, stateHelp
+		return m, nil
+	case "toggle_focus":
+		m.state = stateInput
+		m.textInput.Focus()
+		m.viewport.SetContent(m.renderResults())
+		return m, textinput.Blink
+	case "scroll_up":
+		if m.selectedIdx > 0 {
+			m.selectedIdx--
+			m.viewport.SetContent(m.renderResults())
+			m.scrollToSelected()
+		}
+		return m, nil
+	case "scroll_down":
+		if m.selectedIdx < m.getTotalResults()-1 {
+			m.selectedIdx++
+			m.viewport.SetContent(m.renderResults())
+			m.scrollToSelected()
+		}
+		return m, nil
+	case "open_result":
+		if m.selectedIdx == m.limit {
+			m.limit += 10
+			m.viewport.SetContent(m.renderResults())
+			m.scrollToSelected()
+			return m, m.search()
+		} else if u := m.getSelectedURL(); u != "" {
+			browser.OpenURL(u)
+		}
+		return m, nil
+	case "delete_result":
+		if u := m.getSelectedURL(); u != "" {
+			m.state = stateDialog
+			m.dialogMsg = "Delete this result? (y/n)"
+			u := u
+			m.dialogConfirm = func() tea.Cmd {
+				return m.deleteURL(u)
+			}
+		}
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
+}
+
+func (m *tuiModel) handleDialogKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch msg.String() {
+	case "y":
+		if m.dialogConfirm != nil {
+			cmd = m.dialogConfirm()
+		}
+		m.state = stateResults
+		m.dialogConfirm = nil
+		m.viewport.SetContent(m.renderResults())
+	case "n", "esc":
+		m.state = stateResults
+		m.dialogConfirm = nil
+	}
+	return m, cmd
+}
+
+func (m *tuiModel) View() string {
+	if !m.ready {
+		return "Loading..."
+	}
+	var sections []string
+	if m.height >= 15 {
+		sections = append(sections, bannerStyle.Width(m.width).Render(Banner))
+	}
+	is := blurStyle
+	if m.state == stateInput {
+		is = focusStyle
+	}
+	sections = append(sections, is.Width(m.width-4).Render(m.textInput.View()))
+	vp := m.viewport.View()
+	if m.totalLines > m.viewport.Height && m.viewport.Height > 0 {
+		maxScroll := m.totalLines - m.viewport.Height
+		pct := 0.0
+		if maxScroll > 0 {
+			pct = float64(m.viewport.YOffset) / float64(maxScroll)
+		}
+		pct = max(0, min(1, pct))
+		thumbPos := int(pct * float64(m.viewport.Height-1))
+		track := strings.Repeat(trackStyle.Render("│")+"\n", thumbPos) +
+			thumbStyle.Render("█") + "\n" +
+			strings.Repeat(trackStyle.Render("│")+"\n", m.viewport.Height-thumbPos-1)
+		vp = lipgloss.JoinHorizontal(lipgloss.Top, vp, " ", strings.TrimSuffix(track, "\n"))
+	}
+	vs := blurStyle
+	if m.state == stateResults {
+		vs = focusStyle
+	}
+	vpWrapped := vs.Width(m.width - 4).Render(vp)
+
+	sections = append(sections, vpWrapped, m.renderStatusBar())
+	result := strings.Join(sections, "\n")
+	if m.state == stateHelp {
+		help := helpStyle.Render(generateHelpText(m.cfg))
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, help)
+	}
+	if m.state == stateDialog {
+		dialog := dialogStyle.Render(m.dialogMsg + "\n\n[y/n]")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
+	}
+	return result
+}
+
+func generateHelpText(cfg *config.Config) string {
+	bindings := make(map[string][]string)
+	for k, v := range cfg.Hotkeys.TUI {
+		bindings[v] = append(bindings[v], k)
+	}
+	fmtAct := func(action, label string) string {
+		keys := bindings[action]
+		if len(keys) == 0 {
+			return ""
+		}
+		return fmt.Sprintf("  %-20s %s", strings.Join(keys, ", "), label)
+	}
+	lines := []string{"Configured Shortcuts:\n", "General:"}
+	for _, a := range []struct{ act, lbl string }{
+		{"quit", "Quit application"}, {"toggle_help", "Toggle this help"},
+	} {
+		if s := fmtAct(a.act, a.lbl); s != "" {
+			lines = append(lines, s)
+		}
+	}
+	lines = append(lines, "\nInput Mode:")
+	if s := fmtAct("toggle_focus", "Go to results list"); s != "" {
+		lines = append(lines, s)
+	}
+	lines = append(lines, "\nResults Mode:")
+	for _, a := range []struct{ act, lbl string }{
+		{"toggle_focus", "Go back to input"}, {"scroll_up", "Navigate up"},
+		{"scroll_down", "Navigate down"}, {"open_result", "Open selected item"},
+		{"delete_result", "Delete selected item"},
+	} {
+		if s := fmtAct(a.act, a.lbl); s != "" {
+			lines = append(lines, s)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *tuiModel) renderStatusBar() string {
+	cs := discStyle.Render("● disconnected")
+	if m.wsReady {
+		cs = connStyle.Render("● connected")
+	}
+	mode := ""
+	switch m.state {
+	case stateInput:
+		mode = " [INPUT] "
+	case stateResults:
+		mode = " [RESULTS] "
+	// for the future
+	case stateHelp:
+		mode = " [HELP] "
+	case stateDialog:
+		mode = " [DIALOG] "
+	}
+	modeStr := lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true).Render(mode)
+	count := 0
+	if m.results != nil {
+		count = len(m.results.History) + len(m.results.Documents)
+	}
+	left := " " + cs + modeStr + "  " + fmt.Sprintf("%d results", count)
+	right := "Press ? for help "
+	pad := max(0, m.width-lipgloss.Width(left)-lipgloss.Width(right))
+	sb := left + strings.Repeat(" ", pad) + right
+	if lipgloss.Width(sb) > m.width {
+		return statusStyle.MaxWidth(m.width).Render(sb)
+	}
+	return statusStyle.Render(sb)
+}
+
+func (m *tuiModel) renderResults() string {
+	if m.results == nil || (len(m.results.Documents) == 0 && len(m.results.History) == 0) {
+		m.lineOffsets, m.totalLines = nil, 0
+		if m.textInput.Value() != "" {
+			return grayStyle.Render("No results found")
+		}
+		return grayStyle.Render("Type to search...")
+	}
+	var items []string
+	var lineOffsets []int
+	currentLine, currentIdx := 0, 0
+	w := max(80, m.viewport.Width-2)
+	style := lipgloss.NewStyle().MaxWidth(w)
+	for _, h := range m.results.History {
+		if currentIdx >= m.limit {
+			break
+		}
+		lineOffsets = append(lineOffsets, currentLine)
+		item := style.Render(m.renderHistoryItem(h, currentIdx == m.selectedIdx))
+		items = append(items, item)
+		currentLine += lipgloss.Height(item)
+		currentIdx++
+	}
+	for _, d := range m.results.Documents {
+		if currentIdx >= m.limit {
+			break
+		}
+		lineOffsets = append(lineOffsets, currentLine)
+		item := style.Render(m.renderDocument(d, currentIdx == m.selectedIdx))
+		items = append(items, item)
+		currentLine += lipgloss.Height(item)
+		currentIdx++
+	}
+	totalItems := len(m.results.History) + len(m.results.Documents)
+	if totalItems > m.limit {
+		lineOffsets = append(lineOffsets, currentLine)
+		bs := lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
+		if currentIdx == m.selectedIdx {
+			bs = bs.Background(lipgloss.Color("236"))
+		}
+		rem := max(0, int(m.results.Total)+len(m.results.History)-m.limit)
+		content := bs.Render(fmt.Sprintf("[ ▼ Load 10 more results (%d remaining in index) ]", rem))
+		var item string
+		if currentIdx == m.selectedIdx {
+			item = style.Render(selectedItemStyle.Render(content))
+		} else {
+			item = style.Render(itemStyle.Render(content))
+		}
+		items = append(items, item)
+		currentLine += lipgloss.Height(item)
+	}
+	m.lineOffsets, m.totalLines = lineOffsets, currentLine
+	return strings.Join(items, "\n")
+}
+
+func (m *tuiModel) renderHistoryItem(h *model.URLCount, sel bool) string {
+	ts := titleStyle
+	if sel {
+		ts = selTitle
+	}
+	content := histStyle.Render("[History] ") + ts.Render(strings.Join(strings.Fields(h.Title), " ")) + "\n" + urlStyle.Render(h.URL)
+
+	if sel {
+		return selectedItemStyle.Render(content)
+	}
+	return itemStyle.Render(content)
+}
+
+func (m *tuiModel) renderDocument(d *indexer.Document, sel bool) string {
+	ts := titleStyle
+	if sel {
+		ts = selTitle
+	}
+	var sb strings.Builder
+	sb.WriteString(ts.Render(strings.Join(strings.Fields(d.Title), " ")))
+	sb.WriteString("\n")
+	sb.WriteString(urlStyle.Render(d.URL))
+	if d.Text != "" {
+		sb.WriteString("\n")
+		sb.WriteString(secTextStyle.Render("└ "))
+		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Faint(true).Render(strings.Join(strings.Fields(d.Text), " ")))
+	}
+
+	if sel {
+		return selectedItemStyle.Render(sb.String())
+	}
+	return itemStyle.Render(sb.String())
+}
+
+func (m *tuiModel) scrollToSelected() {
+	if m.selectedIdx < 0 || m.selectedIdx >= len(m.lineOffsets) {
 		return
 	}
-
-	targetLine := t.lineOffsets[t.selectedIdx]
-
-	_, viewHeight := t.ResultsView.Size()
-	_, oy := t.ResultsView.Origin()
-
-	newOrigin := max(0, min(targetLine, targetLine-viewHeight/2))
-	if targetLine < oy || targetLine >= oy+viewHeight {
-		t.ResultsView.SetOrigin(0, newOrigin)
-		oy = newOrigin
+	target := m.lineOffsets[m.selectedIdx]
+	vpH := m.viewport.Height
+	curY := m.viewport.YOffset
+	if target < curY {
+		m.viewport.SetYOffset(target)
 	}
-	t.ResultsView.SetCursor(0, targetLine-oy)
+	if target >= curY+vpH {
+		m.viewport.SetYOffset(target - vpH + 3)
+	}
 }
 
-func (t *tui) openSelected(g *gocui.Gui, v *gocui.View) error {
-	if u := t.getSelectedURL(); u != "" {
-		return browser.OpenURL(u)
-	}
-	return nil
-}
-
-func (t *tui) deleteSelected(g *gocui.Gui, v *gocui.View) error {
-	if u := t.getSelectedURL(); u != "" {
-		t.showConfirmationDialog(g, "Delete this result? (y/n)", func() {
-			http.PostForm(t.cfg.BaseURL("/delete"), url.Values{"url": []string{u}})
-			t.search()
-		})
-	}
-	return nil
-}
-
-func (t *tui) showConfirmationDialog(g *gocui.Gui, message string, onConfirm func()) error {
-	maxX, maxY := g.Size()
-	width := len(message) + 4
-	height := 5
-	x0 := (maxX - width) / 2
-	y0 := (maxY - height) / 2
-
-	v, err := g.SetView("confirm-dialog", x0, y0, x0+width, y0+height)
-	if err != nil && err != gocui.ErrUnknownView {
-		return err
-	}
-
-	v.Frame = true
-	v.Clear()
-	fmt.Fprintln(v, "")
-	fmt.Fprintf(v, "  %s\n", red(message))
-	fmt.Fprint(v, "  [y/n]")
-
-	g.SetCurrentView("confirm-dialog")
-
-	cleanup := func(g *gocui.Gui, v *gocui.View) error {
-		g.DeleteKeybindings("confirm-dialog")
-		g.DeleteView("confirm-dialog")
-		g.SetCurrentView("results")
-		return nil
-	}
-
-	g.SetKeybinding("confirm-dialog", 'y', gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-		onConfirm()
-		return cleanup(g, v)
-	})
-
-	g.SetKeybinding("confirm-dialog", 'n', gocui.ModNone, cleanup)
-	g.SetKeybinding("confirm-dialog", gocui.KeyTab, gocui.ModNone, cleanup)
-
-	return nil
-}
-
-func (t *tui) getTotalResults() int {
-	if t.results == nil {
+func (m *tuiModel) getTotalResults() int {
+	if m.results == nil {
 		return 0
 	}
-	return len(t.results.History) + len(t.results.Documents)
+	c := len(m.results.History) + len(m.results.Documents)
+	if c > m.limit {
+		return m.limit + 1
+	}
+	return c
 }
 
-func (t *tui) getSelectedURL() string {
-	if t.results == nil || t.selectedIdx < 0 {
+func (m *tuiModel) getSelectedURL() string {
+	if m.results == nil || m.selectedIdx < 0 || m.selectedIdx == m.limit {
 		return ""
 	}
-	if t.selectedIdx < len(t.results.History) {
-		return t.results.History[t.selectedIdx].URL
+	if m.selectedIdx < len(m.results.History) {
+		return m.results.History[m.selectedIdx].URL
 	}
-	docIdx := t.selectedIdx - len(t.results.History)
-	if docIdx < len(t.results.Documents) {
-		return t.results.Documents[docIdx].URL
+	docIdx := m.selectedIdx - len(m.results.History)
+	if docIdx < len(m.results.Documents) {
+		return m.results.Documents[docIdx].URL
 	}
 	return ""
 }
 
-func formatText(s string) string {
-	return strings.Join(strings.Fields(s), " ")
-}
-
-func (t *tui) renderHistoryItem(d *model.URLCount) int {
-	fmt.Fprintf(t.ResultsView, "%s[History] %s\n", boldWhite(""), formatText(d.URL))
-	fmt.Fprintf(t.ResultsView, "%s\n", blue(d.URL))
-	fmt.Fprintln(t.ResultsView, "")
-
-	return 3
-}
-
-func (t *tui) renderResult(d *indexer.Document) int {
-	linesPrinted := 3
-	fmt.Fprintf(t.ResultsView, "%s\n", boldWhite(formatText(d.Title)))
-	fmt.Fprintf(t.ResultsView, "%s\n", blue(d.URL))
-	if d.Text != "" {
-		fmt.Fprintln(t.ResultsView, formatText(d.Text))
-		linesPrinted++
+func (m *tuiModel) connectWebSocket() tea.Cmd {
+	return func() tea.Msg {
+		conn, _, err := websocket.DefaultDialer.Dial(m.cfg.WebSocketURL(), nil)
+		if err != nil {
+			return wsDisconnectedMsg{}
+		}
+		m.conn = conn
+		go func() {
+			for {
+				select {
+				case <-m.wsDone:
+					return
+				default:
+					_, data, err := conn.ReadMessage()
+					if err != nil {
+						select {
+						case m.wsChan <- wsDisconnectedMsg{}:
+						case <-m.wsDone:
+						}
+						return
+					}
+					var res *indexer.Results
+					if err := json.Unmarshal(data, &res); err != nil {
+						continue
+					}
+					if len(res.Documents) == 0 && len(res.History) == 0 {
+						res = &indexer.Results{}
+					}
+					select {
+					case m.wsChan <- resultsMsg{results: res}:
+					case <-m.wsDone:
+						return
+					}
+				}
+			}
+		}()
+		return wsConnectedMsg{}
 	}
-	fmt.Fprintln(t.ResultsView, "")
-
-	return linesPrinted
 }
 
-func (t *tui) close() {
-	t.conn.Close()
+func (m *tuiModel) search() tea.Cmd {
+	return func() tea.Msg {
+		if !m.wsReady || m.conn == nil {
+			return nil
+		}
+		qt := strings.TrimSpace(m.textInput.Value())
+		if qt == "" {
+			return resultsMsg{results: &indexer.Results{}}
+		}
+		b, err := json.Marshal(searchQuery{Text: qt, Highlight: "tui", Limit: m.limit + 1})
+		if err != nil {
+			return nil
+		}
+		m.conn.WriteMessage(websocket.TextMessage, b)
+		return nil
+	}
 }
 
-func (t *tui) Query() string {
-	return strings.TrimSpace(t.SearchInput.Buffer())
+func (m *tuiModel) deleteURL(u string) tea.Cmd {
+	return func() tea.Msg {
+		formData := url.Values{"url": {u}}
+		req, _ := http.NewRequest("POST", m.cfg.BaseURL("/delete"), strings.NewReader(formData.Encode()))
+		req.Header.Set("Origin", "hister://")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		http.DefaultClient.Do(req)
+		return m.search()()
+	}
+}
+
+func (m *tuiModel) close() {
+	close(m.wsDone)
+	if m.conn != nil {
+		m.conn.Close()
+	}
+}
+
+func SearchTUI(cfg *config.Config) error {
+	m := initialModel(cfg)
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	finalModel, err := p.Run()
+	if err != nil {
+		return err
+	}
+	if fm, ok := finalModel.(*tuiModel); ok {
+		fm.close()
+	}
+	return nil
 }

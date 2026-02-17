@@ -124,6 +124,49 @@ Once set up:
 4. **Create keyword aliases** for frequently searched topics
 5. **Configure blacklists** to exclude unwanted content
 
+## TUI (Terminal UI)
+
+Hister provides a terminal-based user interface for searching your browsing history without leaving your terminal.
+
+### Start the TUI
+
+Run the search command without any arguments:
+
+```bash
+hister search
+```
+
+### TUI Keybindings
+
+The TUI uses the following keybindings by default:
+
+| Key           | Action        | Description                                  |
+|---------------|---------------|----------------------------------------------|
+| `ctrl+c`, `q` | quit          | Exit the TUI                                 |
+| `?`           | toggle_help   | Show/hide keybindings help                   |
+| `tab`         | toggle_focus  | Switch between search input and results list |
+| `up`, `k`     | scroll_up     | Navigate up in results                       |
+| `down`, `j`   | scroll_down   | Navigate down in results                     |
+| `enter`       | open_result   | Open the selected result in your browser     |
+| `d`           | delete_result | Delete the selected result from the index    |
+| `esc`         | toggle_focus  | Return to search input from results          |
+
+### Customizing TUI Keybindings
+
+You can customize the TUI keybindings in your `~/.config/hister/config.yml` file under the `hotkeys.tui` section:
+
+#### Available Actions
+
+- `quit` - Exit the TUI application
+- `toggle_help` - Show/hide the help overlay
+- `toggle_focus` - Switch between input and results views
+- `scroll_up` - Move selection up
+- `scroll_down` - Move selection down
+- `open_result` - Open selected URL in browser
+- `delete_result` - Delete selected entry from index
+
+Note: After modifying your config file, restart the `hister search` command to apply changes.
+
 ## Next Steps
 
 - Explore the [advanced search syntax](https://blevesearch.com/docs/Query-String-Query/)

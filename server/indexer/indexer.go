@@ -45,6 +45,7 @@ type Query struct {
 	Text      string   `json:"text"`
 	Highlight string   `json:"highlight"`
 	Fields    []string `json:"fields"`
+	Limit     int      `json:"limit"`
 	base      query.Query
 	boostVal  *query.Boost
 	cfg       *config.Config
@@ -98,6 +99,7 @@ func Init(cfg *config.Config) error {
 		idx: idx,
 	}
 	registry.RegisterHighlighter("ansi", invertedAnsiHighlighter)
+	registry.RegisterHighlighter("tui", tuiHighlighter)
 	return nil
 }
 
@@ -175,12 +177,22 @@ func Search(cfg *config.Config, q *Query) (*Results, error) {
 	q.cfg = cfg
 	req := bleve.NewSearchRequest(q.create())
 	req.Fields = q.Fields
+
+	if q.Limit > 0 {
+		req.Size = q.Limit
+	} else {
+		req.Size = 100
+	}
+
 	switch q.Highlight {
 	case "HTML":
 		req.Highlight = bleve.NewHighlight()
 	case "text":
 		req.Highlight = bleve.NewHighlightWithStyle("ansi")
+	case "tui":
+		req.Highlight = bleve.NewHighlightWithStyle("tui")
 	}
+
 	res, err := i.idx.Search(req)
 	if err != nil {
 		return nil, err
@@ -190,6 +202,7 @@ func Search(cfg *config.Config, q *Query) (*Results, error) {
 		d := &Document{
 			URL: v.ID,
 		}
+
 		if t, ok := v.Fragments["text"]; ok {
 			d.Text = t[0]
 		}
@@ -603,13 +616,31 @@ func fullURL(base, u string) string {
 }
 
 func invertedAnsiHighlighter(config map[string]any, cache *registry.Cache) (highlight.Highlighter, error) {
-	// Get the simple fragmenter
 	fragmenter, err := cache.FragmenterNamed(simpleFragmenter.Name)
 	if err != nil {
 		return nil, fmt.Errorf("error building fragmenter: %v", err)
 	}
 
 	formatter := ansi.NewFragmentFormatter(ansi.Reverse)
+	return simpleHighlighter.NewHighlighter(
+		fragmenter,
+		formatter,
+		simpleHighlighter.DefaultSeparator,
+	), nil
+}
+
+func tuiHighlighter(config map[string]any, cache *registry.Cache) (highlight.Highlighter, error) {
+	fragmenter, err := cache.FragmenterNamed(simpleFragmenter.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error building fragmenter: %v", err)
+	}
+
+	// Explicitly split the color (\x1b[38;5;205m) and bold (\x1b[1m) codes
+	// this prevents Lipgloss's ANSI parser from choking and dropping the ESC
+	// when it attempts to re-apply the Underline style on hover
+	seq := "\x1b[38;5;205m\x1b[1m"
+
+	formatter := ansi.NewFragmentFormatter(seq)
 	return simpleHighlighter.NewHighlighter(
 		fragmenter,
 		formatter,
