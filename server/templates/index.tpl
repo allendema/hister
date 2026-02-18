@@ -6,6 +6,10 @@
         <div id="ws-status" class="ws-status" title="Websocket disconnected"></div>
     </div>
 </div>
+<div class="date-filters text-center">
+    <input type="date" id="date-from" placeholder="From date" title="From date" />
+    <input type="date" id="date-to" placeholder="To date" title="To date" />
+</div>
 <button id="hotkey-button" class="hotkeys-button" title="Hotkeys (?)">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="4" width="20" height="16" rx="2"/>

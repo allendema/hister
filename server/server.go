@@ -288,7 +288,18 @@ func serveIndex(c *webContext) {
 func serveSearch(c *webContext) {
 	q := c.Request.URL.Query().Get("q")
 	if q != "" {
-		r, err := doSearch(&indexer.Query{Text: q}, c.Config)
+		// Go uses a reference time (2006-01-02 15:04:05)
+		// "2006-01-02" = YYYY-MM-DD format
+		// Very weird...
+		query := &indexer.Query{Text: q}
+		for param, field := range map[string]*int64{"date_from": &query.DateFrom, "date_to": &query.DateTo} {
+			if v := c.Request.URL.Query().Get(param); v != "" {
+				if t, err := time.Parse("2006-01-02", v); err == nil {
+					*field = t.Unix()
+				}
+			}
+		}
+		r, err := doSearch(query, c.Config)
 		if err != nil {
 			fmt.Println(err)
 			serve500(c)

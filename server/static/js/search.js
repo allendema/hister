@@ -10,6 +10,8 @@ let urlState = {};
 let lastResults = null;
 let currentSort = "";
 let templates = {};
+let dateFromInput = document.getElementById("date-from");
+let dateToInput = document.getElementById("date-to");
 
 const SORT_OPTIONS = [
     { id: "", label: "Relevance" },
@@ -76,6 +78,9 @@ function connect() {
             sendQuery(query);
             input.value = query;
         }
+        const dateFrom = urlParams.get('date_from'), dateTo = urlParams.get('date_to');
+        if(dateFrom) dateFromInput.value = dateFrom;
+        if(dateTo) dateToInput.value = dateTo;
     };
 
     ws.onmessage = renderResults;
@@ -104,15 +109,18 @@ function updateConnectionStatus(connected) {
 
 function sendQuery(q) {
     let message = {"text": q, "highlight": "HTML"};
-    if(currentSort) {
-        message.sort = currentSort;
-    }
+    if(currentSort) message.sort = currentSort;
+    if(dateFromInput?.value) message.date_from = Math.floor(new Date(dateFromInput.value).getTime() / 1000);
+    if(dateToInput?.value) message.date_to = Math.floor(new Date(dateToInput.value).getTime() / 1000);
     ws.send(JSON.stringify(message));
 }
 
 function updateURL() {
     if(input.value) {
-        history.replaceState(urlState, "", `${window.location.pathname}?q=${encodeURIComponent(input.value)}`);
+        let url = `${window.location.pathname}?q=${encodeURIComponent(input.value)}`;
+        if(dateFromInput?.value) url += `&date_from=${encodeURIComponent(dateFromInput.value)}`;
+        if(dateToInput?.value) url += `&date_to=${encodeURIComponent(dateToInput.value)}`;
+        history.replaceState(urlState, "", url);
         return;
     }
     history.replaceState(urlState, "", `${window.location.pathname}`);
@@ -266,10 +274,9 @@ function init() {
     const hotkeyButton = document.getElementById('hotkey-button');
     hotkeyButton.addEventListener('click', showHotkeys);
 
-    const hideButton = localStorage.getItem('hideHotkeyButton');
-    if(hideButton === 'true') {
-        hotkeyButton.classList.add('hidden');
-    }
+    if(localStorage.getItem('hideHotkeyButton') === 'true') hotkeyButton.classList.add('hidden');
+    dateFromInput?.addEventListener('change', handleInput);
+    dateToInput?.addEventListener('change', handleInput);
 }
 
 function openResult(e, newWindow) {

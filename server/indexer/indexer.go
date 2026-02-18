@@ -47,6 +47,8 @@ type Query struct {
 	Fields    []string `json:"fields"`
 	Limit     int      `json:"limit"`
 	Sort      string   `json:"sort"`
+	DateFrom  int64    `json:"date_from"`
+	DateTo    int64    `json:"date_to"`
 	base      query.Query
 	boostVal  *query.Boost
 	cfg       *config.Config
@@ -506,6 +508,24 @@ func (q *Query) create() query.Query {
 	}
 
 	q.base = sq
+
+	if q.DateFrom != 0 || q.DateTo != 0 {
+		if q.DateFrom != 0 && q.DateTo == 0 {
+			q.DateTo = time.Now().Unix()
+		}
+		var min, max *float64
+		if q.DateFrom != 0 {
+			min = new(float64)
+			*min = float64(q.DateFrom)
+		}
+		if q.DateTo != 0 {
+			max = new(float64)
+			*max = float64(q.DateTo)
+		}
+		dateQuery := bleve.NewNumericRangeQuery(min, max)
+		dateQuery.SetField("added")
+		q.base = bleve.NewConjunctionQuery(q.base, dateQuery)
+	}
 
 	return q
 }
