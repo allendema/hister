@@ -199,9 +199,14 @@ table {
   to { opacity: 0; }
 }
 
-.container {
+.section {
     max-width: 70em;
     width: 100%;
+    margin: auto;
+}
+
+.container {
+    max-width: 70em;
     margin: auto;
     margin-top: 1em;
     padding: 1em 2em;
@@ -285,11 +290,6 @@ table {
 }
 
 .date-filters {
-    display: flex;
-    gap: 1em;
-    justify-content: center;
-    padding-top: 0.3em;
-    margin-bottom: 0.5em;
     input {
         width: auto;
         font-size: 0.9em;
@@ -522,7 +522,7 @@ mark {
     }
 }
 
-.export-buttons {
+.small-grey {
     margin-top: 0.3em;
     font-size: 0.85em;
     color: var(--color-semilight);
@@ -535,12 +535,6 @@ mark {
 
 .export-buttons a:hover {
     text-decoration: underline;
-}
-
-.sort-buttons {
-    margin-top: 0.3em;
-    font-size: 0.85em;
-    color: var(--color-semilight);
 }
 
 .sort-buttons a.sort-btn {

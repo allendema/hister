@@ -184,6 +184,13 @@ function setSort(sortId) {
     if(input.value) {
         sendQuery(input.value);
     }
+    document.querySelectorAll(".sort-btn").forEach(e => {
+        if (currentSort === e.dataset.sortId) {
+            e.classList.add("active");
+        } else {
+            e.classList.remove("active");
+        }
+    });
 }
 
 function createTips() {
@@ -274,6 +281,32 @@ function init() {
     const hotkeyButton = document.getElementById('hotkey-button');
     hotkeyButton.addEventListener('click', showHotkeys);
 
+    initActions();
+}
+
+function initActions() {
+    document.querySelector(".export-json").addEventListener("click", exportJSON);
+    document.querySelector(".export-csv").addEventListener("click", exportCSV);
+    document.querySelector(".export-rss").addEventListener("click", exportRSS);
+    const sortContainer = document.querySelector(".sort-options-container")
+    SORT_OPTIONS.forEach((opt, index) => {
+        let btnNode = createTemplate("sort-option", {
+            ".sort-btn": (e) => {
+                e.innerText = opt.label;
+                e.dataset.sortId = opt.id;
+                if (currentSort === opt.id) {
+                    e.classList.add("active");
+                }
+                e.addEventListener("click", () => setSort(opt.id));
+            },
+            ".sort-separator": (e) => {
+                if (index === SORT_OPTIONS.length - 1) {
+                    e.remove();
+                }
+            }
+        });
+        sortContainer.appendChild(btnNode);
+    });
     if(localStorage.getItem('hideHotkeyButton') === 'true') hotkeyButton.classList.add('hidden');
     dateFromInput?.addEventListener('change', handleInput);
     dateToInput?.addEventListener('change', handleInput);
@@ -302,31 +335,6 @@ function createResultsHeader(res) {
     const header = createTemplate("results-header", {
         ".duration": (e) => e.innerText = res.search_duration || "",
         ".results-num": (e) => e.innerText = res.total || d.length,
-        ".export-json": (e) => e.addEventListener("click", () => exportJSON()),
-        ".export-csv": (e) => e.addEventListener("click", () => exportCSV()),
-        ".export-rss": (e) => e.addEventListener("click", () => exportRSS()),
-        ".sort-options-container": (container) => {
-            SORT_OPTIONS.forEach((opt, index) => {
-                let btnNode = createTemplate("sort-option", {
-                    ".sort-btn": (e) => {
-                        e.innerText = opt.label;
-                        e.dataset.sortId = opt.id;
-                        
-                        if (currentSort === opt.id) {
-                            e.classList.add("active");
-                        }
-                        
-                        e.addEventListener("click", () => setSort(opt.id));
-                    },
-                    ".sort-separator": (e) => {
-                        if (index === SORT_OPTIONS.length - 1) {
-                            e.remove(); 
-                        }
-                    }
-                });
-                container.appendChild(btnNode);
-            });
-        },
         "#external-search-link": (e) => {
             if(input.value.trim()) {
                 e.href = getSearchUrl(input.value);

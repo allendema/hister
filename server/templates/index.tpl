@@ -6,10 +6,21 @@
         <div id="ws-status" class="ws-status" title="Websocket disconnected"></div>
     </div>
 </div>
-<div class="date-filters text-center">
-    <input type="date" id="date-from" placeholder="From date" title="From date" />
-    <input type="date" id="date-to" placeholder="To date" title="To date" />
-</div>
+<details class="section">
+    <summary>Actions</summary>
+    <div class="container">
+        <div class="sort-buttons small-grey">
+            Sort by: <span class="sort-options-container"></span>
+        </div>
+        <div class="export-buttons small-grey">
+            Export: <a class="export-json">JSON</a> | <a class="export-csv">CSV</a> | <a class="export-rss">RSS</a>
+        </div>
+        <div class="date-filters small-grey">
+            Filter from: <input type="date" id="date-from" placeholder="From date" title="From date" />
+            Filter to: <input type="date" id="date-to" placeholder="To date" title="To date" />
+        </div>
+    </div>
+</details>
 <button id="hotkey-button" class="hotkeys-button" title="Hotkeys (?)">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -36,12 +47,6 @@
         </div>
         <div>Total number of results: <b class="results-num"></b></div>
         <div class="expanded-query"></div>
-        <div class="sort-buttons">
-            Sort by: <span class="sort-options-container"></span>
-        </div>
-        <div class="export-buttons">
-            Export: <a class="export-json">JSON</a> | <a class="export-csv">CSV</a> | <a class="export-rss">RSS</a>
-        </div>
     </div>
 </template>
 <template id="sort-option">
