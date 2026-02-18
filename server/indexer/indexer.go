@@ -1,7 +1,6 @@
 package indexer
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -18,7 +17,6 @@ import (
 	"github.com/asciimoo/hister/config"
 	"github.com/asciimoo/hister/server/model"
 
-	"golang.org/x/net/html"
 	"golang.org/x/net/idna"
 
 	"github.com/blevesearch/bleve/v2"
@@ -286,10 +284,8 @@ func (d *Document) Process() error {
 		d.URL = pu.String()
 	}
 	d.Domain = pu.Host
-	if d.Text == "" || d.Title == "" {
-		if err := d.extractHTML(); err != nil {
-			return err
-		}
+	if err := d.extractHTML(); err != nil {
+		return err
 	}
 	d.processed = true
 	return nil
@@ -343,77 +339,12 @@ func docFromHit(h *search.DocumentMatch) *Document {
 }
 
 func (d *Document) extractHTML() error {
-	r := bytes.NewReader([]byte(d.HTML))
-	doc := html.NewTokenizer(r)
-	inBody := false
-	skip := false
-	var text strings.Builder
-	var currentTag string
-out:
-	for {
-		tt := doc.Next()
-		switch tt {
-		case html.ErrorToken:
-			err := doc.Err()
-			if errors.Is(err, io.EOF) {
-				break out
-			}
-			return errors.New("failed to parse html: " + err.Error())
-		case html.SelfClosingTagToken, html.StartTagToken:
-			tn, hasAttrs := doc.TagName()
-			currentTag = string(tn)
-			switch currentTag {
-			case "body":
-				inBody = true
-			case "script", "style":
-				skip = true
-			case "link":
-				var href string
-				icon := false
-				if !hasAttrs {
-					break
-				}
-				for {
-					aName, aVal, moreAttr := doc.TagAttr()
-					if bytes.Equal(aName, []byte("href")) {
-						href = string(aVal)
-					}
-					if bytes.Equal(aName, []byte("rel")) && bytes.Contains(aVal, []byte("icon")) {
-						icon = true
-					}
-					if !moreAttr {
-						break
-					}
-				}
-				if icon && href != "" {
-					d.faviconURL = fullURL(d.URL, href)
-				}
-			}
-		case html.TextToken:
-			if currentTag == "title" {
-				d.Title += strings.TrimSpace(string(doc.Text()))
-			}
-			if inBody && !skip {
-				text.Write(doc.Text())
-			}
-		case html.EndTagToken:
-			tn, _ := doc.TagName()
-			switch string(tn) {
-			case "body":
-				inBody = false
-			case "script", "style":
-				skip = false
-			}
+	for _, e := range extractors {
+		if e.Match(d) {
+			return e.Extract(d)
 		}
 	}
-	d.Text = strings.TrimSpace(text.String())
-	if d.Text == "" {
-		return errors.New("no text found")
-	}
-	if d.Title == "" {
-		return errors.New("no title found")
-	}
-	return nil
+	return errors.New("no extractor found")
 }
 
 func (d *Document) DownloadFavicon() error {
