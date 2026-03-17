@@ -756,7 +756,7 @@
                           <Input
                             type="date"
                             bind:value={dateFrom}
-                            class="border-border-brand-muted bg-card-surface text-text-brand font-fira focus-visible:border-hister-indigo h-7 flex-1 border-[2px] px-2 text-xs shadow-none focus-visible:ring-0"
+                            class="border-border-brand-muted bg-card-surface text-text-brand font-fira focus-visible:border-hister-indigo h-7 flex-1 border-[2px] px-2 text-xs shadow-none focus-visible:ring-0 cursor-pointer"
                           />
                         </label>
                         <label
@@ -766,7 +766,7 @@
                           <Input
                             type="date"
                             bind:value={dateTo}
-                            class="border-border-brand-muted bg-card-surface text-text-brand font-fira focus-visible:border-hister-indigo h-7 flex-1 border-[2px] px-2 text-xs shadow-none focus-visible:ring-0"
+                            class="border-border-brand-muted bg-card-surface text-text-brand font-fira focus-visible:border-hister-indigo h-7 flex-1 border-[2px] px-2 text-xs shadow-none focus-visible:ring-0 cursor-pointer"
                           />
                         </label>
                       </div>
@@ -774,7 +774,7 @@
                     <Separator class="bg-border-brand-muted" />
                     <div class="space-y-2">
                       <p
-                        class="font-inter text-text-brand-muted flex items-center gap-1.5 text-xs font-semibold"
+                        class="font-inter text-text-brand-muted flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
                       >
                         <Download class="size-3" />
                         Export Results
@@ -783,7 +783,7 @@
                         <Button
                           variant="outline"
                           size="sm"
-                          class="border-hister-indigo text-hister-indigo hover:bg-hister-indigo/10 h-7 border-[2px] text-xs"
+                          class="border-hister-indigo text-hister-indigo hover:bg-hister-indigo/10 h-7 border-[2px] text-xs cursor-pointer"
                           onclick={() => exportJSON(lastResults!)}
                         >
                           JSON
@@ -791,7 +791,7 @@
                         <Button
                           variant="outline"
                           size="sm"
-                          class="border-hister-indigo text-hister-indigo hover:bg-hister-indigo/10 h-7 border-[2px] text-xs"
+                          class="border-hister-indigo text-hister-indigo hover:bg-hister-indigo/10 h-7 border-[2px] text-xs cursor-pointer"
                           onclick={() => exportCSV(lastResults!, query)}
                         >
                           CSV
@@ -799,7 +799,7 @@
                         <Button
                           variant="outline"
                           size="sm"
-                          class="border-hister-indigo text-hister-indigo hover:bg-hister-indigo/10 h-7 border-[2px] text-xs"
+                          class="border-hister-indigo text-hister-indigo hover:bg-hister-indigo/10 h-7 border-[2px] text-xs cursor-pointer"
                           onclick={() => exportRSS(lastResults!, query)}
                         >
                           RSS
@@ -821,7 +821,7 @@
               <Button
                 variant="ghost"
                 size="sm"
-                class="font-inter text-hister-indigo hover:text-hister-coral text-xs"
+                class="font-inter text-hister-indigo hover:text-hister-coral text-xs cursor-pointer"
                 onclick={() => setSort(currentSort === '' ? 'domain' : '')}
               >
                 Sort: {currentSort === 'domain' ? 'Domain' : 'Relevance'}

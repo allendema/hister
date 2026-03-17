@@ -11,10 +11,10 @@
         destructive:
           'bg-destructive hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60 text-white',
         outline:
-          'bg-background hover:bg-accent hover:text-accent-foreground dark:border-input dark:hover:bg-input/50 border',
+          'bg-background hover:bg-accent hover:text-accent-foreground dark:border-input dark:hover:bg-input/50 border cursor-pointer',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-        link: 'text-primary underline-offset-4 hover:underline',
+        ghost: 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 cursor-pointer',
+        link: 'text-primary underline-offset-4 hover:underline cursor-pointer',
       },
       size: {
         default: 'h-10 px-4 py-2 has-[>svg]:px-3',
